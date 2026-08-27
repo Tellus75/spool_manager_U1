@@ -19,6 +19,7 @@ from .models import (
     JOB_REVIEW,
     REASON_ADJUST,
     REASON_INIT,
+    REASON_PARTIAL,
     REASON_PRINT,
     REASON_UNDO,
     REASON_WEIGH,
@@ -165,11 +166,36 @@ class Inventory:
         )
         self.conn.commit()
 
-    # ---------------------------------------------------------- emplacements U1
+    # ---------------------------------------------------------- imprimante / emplacements
 
-    def slot_count(self) -> int:
+    def printer_id(self) -> str:
+        from . import printers
         from .db import get_setting
 
+        return get_setting(self.conn, "printer_id", printers.DEFAULT_PRINTER_ID)
+
+    def printer(self):
+        from . import printers
+
+        return printers.get(self.printer_id())
+
+    def printer_display_name(self) -> str:
+        from . import printers
+
+        return printers.display_name(self.printer())
+
+    def enabled_slicers_raw(self) -> str:
+        from .db import get_setting
+
+        return get_setting(self.conn, "enabled_slicers", "")
+
+    def slot_count(self) -> int:
+        from . import printers
+        from .db import get_setting
+
+        profile = self.printer()
+        if profile.id != printers.CUSTOM_PRINTER_ID:
+            return profile.slot_count
         try:
             return max(1, int(get_setting(self.conn, "slot_count", str(DEFAULT_SLOT_COUNT))))
         except ValueError:
@@ -409,8 +435,8 @@ class Inventory:
 
         rows = self.conn.execute(
             "SELECT spool_id, SUM(delta_g) AS total FROM stock_movement "
-            "WHERE job_id = ? AND reason = ? GROUP BY spool_id",
-            (job_id, REASON_PRINT),
+            "WHERE job_id = ? AND reason IN (?, ?) GROUP BY spool_id",
+            (job_id, REASON_PRINT, REASON_PARTIAL),
         ).fetchall()
 
         for row in rows:
@@ -434,6 +460,125 @@ class Inventory:
             "DELETE FROM print_job WHERE id = ? AND status = ?", (job_id, JOB_REVIEW)
         )
         self.conn.commit()
+
+    def sliced_grams_map(self, job_id: int) -> dict[int, float]:
+        """Poids tranché d'origine par ligne d'usage, lu sur les mouvements d'impression.
+
+        `job_usage.grams` peut avoir été corrigé après une impression inachevée ;
+        les retraits `print` restent la référence du maximum autorisé.
+        """
+        queued: dict[int, list[float]] = {}
+        for row in self.conn.execute(
+            "SELECT spool_id, -delta_g AS g FROM stock_movement "
+            "WHERE job_id = ? AND reason = ? ORDER BY id",
+            (job_id, REASON_PRINT),
+        ):
+            queued.setdefault(int(row["spool_id"]), []).append(float(row["g"]))
+
+        result: dict[int, float] = {}
+        for usage in self.job_usages(job_id):
+            spool_id = usage["spool_id"]
+            bucket = queued.get(int(spool_id)) if spool_id is not None else None
+            if bucket:
+                result[int(usage["id"])] = bucket.pop(0)
+            else:
+                result[int(usage["id"])] = float(usage["grams"])
+        return result
+
+    def job_was_shortened(self, job_id: int) -> bool:
+        row = self.conn.execute(
+            "SELECT 1 FROM stock_movement WHERE job_id = ? AND reason = ? LIMIT 1",
+            (job_id, REASON_PARTIAL),
+        ).fetchone()
+        return row is not None
+
+    def revise_job(
+        self,
+        job_id: int,
+        actual_by_usage: dict[int, float],
+        note: str = "",
+    ) -> None:
+        """Corrige le décompte d'une impression arrêtée avant la fin.
+
+        Chaque valeur est bornée à `[0, poids tranché]`. La différence est
+        recréditée (ou retirée de nouveau) via un mouvement `partial`, sans
+        jamais modifier le retrait d'origine.
+        """
+        job = self.get_job(job_id)
+        if job is None or job["status"] != JOB_APPLIED:
+            return
+
+        sliced_map = self.sliced_grams_map(job_id)
+        usages = self.job_usages(job_id)
+        new_total = 0.0
+        label = note or (job["project_name"] or "")
+
+        for usage in usages:
+            uid = int(usage["id"])
+            sliced = sliced_map.get(uid, float(usage["grams"]))
+            current = float(usage["grams"])
+            if uid in actual_by_usage:
+                actual = max(0.0, min(sliced, round(float(actual_by_usage[uid]), 3)))
+            else:
+                actual = current
+
+            new_total += actual
+            self.conn.execute(
+                "UPDATE job_usage SET grams = ? WHERE id = ?", (actual, uid)
+            )
+
+            spool_id = usage["spool_id"]
+            delta = round(current - actual, 3)
+            if spool_id is None or abs(delta) < 0.001:
+                continue
+            self._add_movement(
+                int(spool_id),
+                delta,
+                REASON_PARTIAL,
+                job_id=job_id,
+                note=label,
+            )
+            self._refresh_state(int(spool_id))
+
+        sliced_total = sum(sliced_map.values())
+        current_total = float(job["total_g"] or 0)
+        old_cost = float(job["total_cost"] or 0)
+        if sliced_total > 0.001 and current_total > 0.001 and old_cost:
+            original_cost = old_cost * sliced_total / current_total
+            new_cost = round(original_cost * new_total / sliced_total, 4)
+        elif sliced_total > 0.001 and old_cost == 0:
+            new_cost = 0.0
+        else:
+            new_cost = round(self._cost_from_usages(usages, actual_by_usage, sliced_map), 4)
+
+        self.conn.execute(
+            "UPDATE print_job SET total_g = ?, total_cost = ? WHERE id = ?",
+            (round(new_total, 3), new_cost, job_id),
+        )
+        self.conn.commit()
+
+    def _cost_from_usages(
+        self,
+        usages: list[sqlite3.Row],
+        actual_by_usage: dict[int, float],
+        sliced_map: dict[int, float],
+    ) -> float:
+        total = 0.0
+        for usage in usages:
+            uid = int(usage["id"])
+            sliced = sliced_map.get(uid, float(usage["grams"]))
+            grams = (
+                max(0.0, min(sliced, float(actual_by_usage[uid])))
+                if uid in actual_by_usage
+                else float(usage["grams"])
+            )
+            if grams <= 0 or usage["spool_id"] is None:
+                continue
+            spool = self.get_spool(int(usage["spool_id"]))
+            if spool is None or spool.nominal_net_g <= 0 or spool.price <= 0:
+                continue
+            total += grams * spool.price / spool.nominal_net_g
+        return total
 
     def get_job(self, job_id: int) -> sqlite3.Row | None:
         return self.conn.execute(
@@ -468,8 +613,9 @@ class Inventory:
     def stats(self) -> dict[str, float]:
         spools = [s for s in self.list_spools() if s.state != STATE_ARCHIVED]
         printed = self.conn.execute(
-            "SELECT COALESCE(SUM(-delta_g), 0) AS total FROM stock_movement WHERE reason = ?",
-            (REASON_PRINT,),
+            "SELECT COALESCE(SUM(-delta_g), 0) AS total FROM stock_movement "
+            "WHERE reason IN (?, ?)",
+            (REASON_PRINT, REASON_PARTIAL),
         ).fetchone()["total"]
 
         return {

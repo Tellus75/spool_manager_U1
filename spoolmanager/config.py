@@ -51,19 +51,31 @@ def hook_script_path() -> Path:
     return project_root() / "hook" / "orca_hook.py"
 
 
+def appdata_dir() -> Path:
+    """APPDATA des trancheurs, surchargeable par SPOOLMANAGER_APPDATA (tests)."""
+    override = os.environ.get("SPOOLMANAGER_APPDATA")
+    if override:
+        return Path(override)
+    return Path(os.environ.get("APPDATA") or os.path.expanduser("~"))
+
+
+def temp_dir() -> Path:
+    return Path(os.environ.get("TEMP") or os.environ.get("TMP") or ".")
+
+
 def orca_config_dir() -> Path:
-    base = os.environ.get("APPDATA") or os.path.expanduser("~")
-    return Path(base) / "Snapmaker_Orca"
+    return appdata_dir() / "Snapmaker_Orca"
 
 
 def orca_slice_temp_dir() -> Path:
-    """Dossier où Snapmaker Orca écrit le G-code temporaire au tranchage.
+    """Dossier temporaire de Snapmaker Orca (conservé pour les tests existants)."""
+    from . import slicers
 
-    Pour une imprimante Bambu, Orca exécute les scripts de post-traitement dès
-    cette écriture. Pour la U1, il ne le fait qu'à l'export : surveiller ce dossier
-    permet de décompter au tranchage, comme pour une A1 Mini.
-    """
-    override = os.environ.get("SPOOLMANAGER_SLICE_TEMP")
-    if override:
-        return Path(override)
-    return Path(os.environ.get("TEMP") or os.environ.get("TMP") or ".") / "snapmaker_orca_model"
+    dirs = slicers.slice_temp_dirs()
+    return dirs[0] if dirs else temp_dir() / "snapmaker_orca_model"
+
+
+def slice_temp_dirs() -> list[Path]:
+    from . import slicers
+
+    return slicers.slice_temp_dirs()

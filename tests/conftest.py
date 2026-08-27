@@ -12,9 +12,10 @@ def _french_ui():
 
 
 @pytest.fixture(autouse=True)
-def _isolate_orca_temp(tmp_path, monkeypatch):
-    """Évite que les tests lisent le vrai G-code temporaire d'Orca."""
+def _isolate_host_slicers(tmp_path, monkeypatch):
+    """Évite que les tests lisent les vrais profils et G-code temporaires des trancheurs."""
     monkeypatch.setenv("SPOOLMANAGER_SLICE_TEMP", str(tmp_path / "orca-slice-temp-unused"))
+    monkeypatch.setenv("SPOOLMANAGER_APPDATA", str(tmp_path / "fake-appdata"))
 
 
 @pytest.fixture

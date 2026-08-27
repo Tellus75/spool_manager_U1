@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import matching
+from .. import matching, printers
 from ..i18n import t
 from ..inventory import Inventory
 from ..models import ParsedUsage, format_timestamp
@@ -40,7 +40,7 @@ def usage_from_row(row) -> ParsedUsage:
 class UsageRow(QFrame):
     """Une ligne de choix : ce que demande le G-code, et la bobine à décompter."""
 
-    def __init__(self, row, spools, parent=None):
+    def __init__(self, row, spools, parent=None, *, slot_kind: str = "tool"):
         super().__init__(parent)
         self.usage_id = row["id"]
         self.grams = float(row["grams"])
@@ -57,7 +57,9 @@ class UsageRow(QFrame):
         description.setSpacing(1)
 
         slot_text = (
-            t("history.slot", slot=usage.slot) if usage.slot is not None else t("history.filament")
+            printers.slot_caption(usage.slot, slot_kind)
+            if usage.slot is not None
+            else t("history.filament")
         )
         headline = QLabel(
             t(
@@ -174,9 +176,10 @@ class ReviewDialog(QDialog):
             layout.addWidget(warning)
 
         spools = inventory.list_spools()
+        kind = printers.kind_for_gcode_printer(job["printer"] or "")
         self._rows: list[UsageRow] = []
         for usage in inventory.job_usages(job_id):
-            row = UsageRow(usage, spools, self)
+            row = UsageRow(usage, spools, self, slot_kind=kind)
             self._rows.append(row)
             layout.addWidget(row)
 

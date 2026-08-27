@@ -26,6 +26,7 @@ REASON_PRINT = "print"
 REASON_WEIGH = "weigh"
 REASON_ADJUST = "adjust"
 REASON_UNDO = "undo"
+REASON_PARTIAL = "partial"
 
 REASON_LABELS = {
     REASON_INIT: "Mise en stock",
@@ -33,6 +34,7 @@ REASON_LABELS = {
     REASON_WEIGH: "Pesée de recalage",
     REASON_ADJUST: "Correction manuelle",
     REASON_UNDO: "Annulation",
+    REASON_PARTIAL: "Impression inachevée",
 }
 
 # Statuts d'un job tranché.

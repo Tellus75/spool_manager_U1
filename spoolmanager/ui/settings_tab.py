@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import autostart, config, db, i18n, orca
+from .. import autostart, config, db, i18n, orca, printers, slicers
 from ..i18n import t
 from ..inventory import Inventory
 from . import theme
@@ -86,6 +86,16 @@ class SettingsTab(QWidget):
         explanation.setWordWrap(True)
         layout.addWidget(explanation)
 
+        self._slicer_boxes: dict[str, QCheckBox] = {}
+        slicers_label = QLabel(t("settings.slicers"))
+        slicers_label.setProperty("role", "muted")
+        layout.addWidget(slicers_label)
+        for slicer in slicers.SLICERS:
+            box = QCheckBox(slicer.name)
+            box.toggled.connect(self._save_slicers)
+            self._slicer_boxes[slicer.id] = box
+            layout.addWidget(box)
+
         command_row = QHBoxLayout()
         self._command = QLineEdit(orca.hook_command())
         self._command.setReadOnly(True)
@@ -129,7 +139,7 @@ class SettingsTab(QWidget):
         self.message.emit(t("settings.copied"))
 
     def _install_hook(self) -> None:
-        presets = orca.user_process_presets()
+        presets = orca.user_process_presets(self.inventory.enabled_slicers_raw())
         if not presets:
             QMessageBox.information(
                 self,
@@ -150,7 +160,11 @@ class SettingsTab(QWidget):
         if orca.is_orca_running() and not self._confirm_orca_running():
             return
 
-        removed = sum(1 for path in orca.user_process_presets() if orca.uninstall_hook(path))
+        removed = sum(
+            1
+            for path in orca.user_process_presets(self.inventory.enabled_slicers_raw())
+            if orca.uninstall_hook(path)
+        )
         self.refresh()
         self.message.emit(t("settings.removed", count=removed))
 
@@ -218,6 +232,14 @@ class SettingsTab(QWidget):
         self._language.currentIndexChanged.connect(self._save_language)
         form.addRow(t("settings.language"), self._language)
 
+        self._printer = QComboBox()
+        self._printer.setToolTip(t("settings.printer_tip"))
+        for profile in printers.selectable():
+            label = printers.display_name(profile)
+            self._printer.addItem(label, profile.id)
+        self._printer.currentIndexChanged.connect(self._save_printer)
+        form.addRow(t("settings.printer"), self._printer)
+
         self._threshold = QDoubleSpinBox()
         self._threshold.setRange(0, 5000)
         self._threshold.setDecimals(0)
@@ -254,9 +276,40 @@ class SettingsTab(QWidget):
         i18n.set_language(code)
         self.changed.emit()
 
+    def _save_printer(self, _index: int = 0) -> None:
+        printer_id = self._printer.currentData()
+        if not printer_id:
+            return
+        db.set_setting(self.conn, "printer_id", printer_id)
+        profile = printers.get(printer_id)
+        custom = profile.id == printers.CUSTOM_PRINTER_ID
+        self._slots.setEnabled(custom)
+        if not custom:
+            self._slots.blockSignals(True)
+            self._slots.setValue(profile.slot_count)
+            self._slots.blockSignals(False)
+            db.set_setting(self.conn, "slot_count", str(profile.slot_count))
+        self.changed.emit()
+
+    def _save_slicers(self) -> None:
+        checked = [
+            slicer_id
+            for slicer_id, box in self._slicer_boxes.items()
+            if box.isChecked()
+        ]
+        if not checked:
+            raw = "none"
+        elif len(checked) == len(self._slicer_boxes):
+            raw = ""
+        else:
+            raw = slicers.encode_enabled_ids(checked)
+        db.set_setting(self.conn, "enabled_slicers", raw)
+        self.changed.emit()
+
     def _save_preferences(self) -> None:
         db.set_setting(self.conn, "low_threshold_g", str(int(self._threshold.value())))
-        db.set_setting(self.conn, "slot_count", str(self._slots.value()))
+        if printers.get(self._printer.currentData()).id == printers.CUSTOM_PRINTER_ID:
+            db.set_setting(self.conn, "slot_count", str(self._slots.value()))
         db.set_setting(
             self.conn, "notifications", "1" if self._notifications.isChecked() else "0"
         )
@@ -307,21 +360,29 @@ class SettingsTab(QWidget):
 
     def refresh(self) -> None:
         self._command.setText(orca.hook_command())
+        enabled_raw = self.inventory.enabled_slicers_raw()
 
-        if not orca.is_installed():
+        installed = slicers.installed()
+        if not installed:
             self._orca_status.setText(t("settings.orca_missing"))
             self._orca_status.setStyleSheet(f"color: {theme.DANGER};")
         else:
             running = t("settings.orca_running") if orca.is_orca_running() else ""
-            self._orca_status.setText(t("settings.orca_found", path=orca.orca_dir(), running=running))
+            names = ", ".join(slicer.name for slicer in installed)
+            self._orca_status.setText(
+                t("settings.orca_found", names=names, running=running)
+            )
             self._orca_status.setStyleSheet(f"color: {theme.MUTED};")
 
-        status = orca.hook_status()
+        status = orca.hook_status(enabled_raw)
         self._presets.clear()
+        several = len({slicers.slicer_for_path(path) for path, _ in status}) > 1
         for path, hooked in status:
-            item = QListWidgetItem(
-                f"{'✓' if hooked else '○'}   {path.stem}"
-            )
+            label = path.stem
+            slicer = slicers.slicer_for_path(path)
+            if several and slicer is not None:
+                label = f"{slicer.name} · {label}"
+            item = QListWidgetItem(f"{'✓' if hooked else '○'}   {label}")
             item.setForeground(
                 Qt.GlobalColor.white if hooked else Qt.GlobalColor.gray
             )
@@ -339,17 +400,26 @@ class SettingsTab(QWidget):
             self._hook_warning.setText("")
 
         self._language.blockSignals(True)
+        self._printer.blockSignals(True)
         self._threshold.blockSignals(True)
         self._slots.blockSignals(True)
         self._notifications.blockSignals(True)
         self._tray.blockSignals(True)
         self._watch_enabled.blockSignals(True)
         self._autostart.blockSignals(True)
+        for box in self._slicer_boxes.values():
+            box.blockSignals(True)
 
         current = db.get_setting(self.conn, "language", i18n.DEFAULT_LANGUAGE)
         index = self._language.findData(current)
         if index >= 0:
             self._language.setCurrentIndex(index)
+
+        printer_index = self._printer.findData(self.inventory.printer_id())
+        if printer_index >= 0:
+            self._printer.setCurrentIndex(printer_index)
+        profile = self.inventory.printer()
+        self._slots.setEnabled(profile.id == printers.CUSTOM_PRINTER_ID)
         self._threshold.setValue(self.inventory.low_threshold())
         self._slots.setValue(self.inventory.slot_count())
         self._notifications.setChecked(db.get_setting(self.conn, "notifications", "1") == "1")
@@ -358,13 +428,23 @@ class SettingsTab(QWidget):
         self._watch_dir.setText(db.get_setting(self.conn, "watch_dir", ""))
         self._autostart.setChecked(autostart.is_enabled())
 
+        enabled_ids = set(slicers.parse_enabled_ids(enabled_raw))
+        for slicer in slicers.SLICERS:
+            box = self._slicer_boxes[slicer.id]
+            key = "settings.slicer_found" if slicer.is_installed() else "settings.slicer_missing"
+            box.setText(t(key, name=slicer.name))
+            box.setChecked(slicer.id in enabled_ids)
+
         self._language.blockSignals(False)
+        self._printer.blockSignals(False)
         self._threshold.blockSignals(False)
         self._slots.blockSignals(False)
         self._notifications.blockSignals(False)
         self._tray.blockSignals(False)
         self._watch_enabled.blockSignals(False)
         self._autostart.blockSignals(False)
+        for box in self._slicer_boxes.values():
+            box.blockSignals(False)
 
         from .. import __version__
 

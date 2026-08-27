@@ -148,6 +148,32 @@ class TestRealMultiColourExport:
         assert job.gcode_hash != other.gcode_hash
 
 
+class TestRealA1MiniExport:
+    """Export Snapmaker Orca 2.3.5 pour une Bambu Lab A1 mini (AMS, 4 filaments).
+
+    Pas de `filament_map` : l'ordre des filaments est celui des emplacements AMS.
+    Un seul filament est consommé ; les trois autres restent à 0 g.
+    """
+
+    @pytest.fixture
+    def job(self):
+        return parse_file(FIXTURES / "real_a1_mini.gcode")
+
+    def test_header_is_read(self, job):
+        assert job.printer == "Bambu Lab A1 mini"
+        assert job.print_time == "6m 12s"
+        assert job.total_g == pytest.approx(1.00)
+
+    def test_ams_slots_follow_filament_order(self, job):
+        assert [u.slot for u in job.usages] == [1, 2, 3, 4]
+        assert job.usages[0].grams == pytest.approx(1.00)
+        assert job.usages[0].material == "PETG"
+        assert job.usages[0].preset == "Generic PETG @BBL A1M"
+        assert job.usages[0].color_hex == "#FFFFFF"
+        assert job.usages[0].density == pytest.approx(1.27)
+        assert [u.grams for u in job.usages[1:]] == [0.0, 0.0, 0.0]
+
+
 def test_wipe_tower_is_reported_as_warning():
     job = parse_file(FIXTURES / "sample_u1_multi.gcode")
     assert any("purge" in w for w in job.warnings)

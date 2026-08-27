@@ -35,7 +35,7 @@ class Watcher(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._watch_dir: Path | None = None
-        self._slice_temp_dir: Path | None = config.orca_slice_temp_dir()
+        self._slice_temp_dirs: list[Path] = list(config.slice_temp_dirs())
         # Dernière signature observée par fichier, pour détecter une écriture en cours.
         self._signatures: dict[str, tuple[int, int]] = {}
         # Signatures déjà traitées, pour ne jamais rejouer un fichier.
@@ -64,7 +64,7 @@ class Watcher(QObject):
 
     def set_slice_temp_dir(self, path: str | Path | None) -> None:
         """Surcharge le dossier de G-code temporaire (tests, ou désactivation)."""
-        self._slice_temp_dir = Path(path) if path else None
+        self._slice_temp_dirs = [Path(path)] if path else []
         self._forget_missing_files()
         self._primed = False
 
@@ -77,7 +77,8 @@ class Watcher(QObject):
 
     def poll(self) -> None:
         self._poll_inbox()
-        self._poll_gcode_dir(self._slice_temp_dir, recursive=True, source="slice")
+        for directory in self._slice_temp_dirs:
+            self._poll_gcode_dir(directory, recursive=True, source="slice")
         self._poll_gcode_dir(self._watch_dir, recursive=False, source="watch")
         self._primed = True
 

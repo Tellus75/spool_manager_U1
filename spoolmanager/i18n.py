@@ -22,23 +22,25 @@ _STRINGS: dict[str, dict[str, str]] = {
     "browse": {"fr": "Parcourir…", "en": "Browse…"},
     "apply": {"fr": "Appliquer", "en": "Apply"},
     "window.title": {
-        "fr": "Spool Manager — bobines Snapmaker",
-        "en": "Spool Manager — Snapmaker spools",
+        "fr": "Spool Manager — suivi des bobines",
+        "en": "Spool Manager — spool tracking",
     },
     "ready": {
-        "fr": "Prêt · en attente d'un tranchage depuis Snapmaker Orca",
-        "en": "Ready · waiting for a slice from Snapmaker Orca",
+        "fr": "Prêt · en attente d'un tranchage",
+        "en": "Ready · waiting for a slice",
     },
     "about.title": {"fr": "À propos", "en": "About"},
     "about.body": {
-        "fr": "Spool Manager\n\nSuivi des bobines de filament couplé à Snapmaker Orca.",
-        "en": "Spool Manager\n\nFilament spool tracking coupled with Snapmaker Orca.",
+        "fr": "Spool Manager\n\nSuivi des bobines de filament couplé à Snapmaker Orca, "
+        "Orca Slicer et Bambu Studio.",
+        "en": "Spool Manager\n\nFilament spool tracking coupled with Snapmaker Orca, "
+        "Orca Slicer and Bambu Studio.",
     },
     "filter.all_materials": {"fr": "Toutes les matières", "en": "All materials"},
     # --- onglets ----------------------------------------------------------
     "tab.dashboard": {"fr": "Tableau de bord", "en": "Dashboard"},
     "tab.spools": {"fr": "Bobines", "en": "Spools"},
-    "tab.printer": {"fr": "Imprimante U1", "en": "U1 printer"},
+    "tab.printer": {"fr": "Imprimante", "en": "Printer"},
     "tab.history": {"fr": "Historique", "en": "History"},
     "tab.history_pending": {"fr": "Historique ({count})", "en": "History ({count})"},
     "tab.settings": {"fr": "Réglages", "en": "Settings"},
@@ -64,8 +66,8 @@ _STRINGS: dict[str, dict[str, str]] = {
     "dashboard.stat.value": {"fr": "Valeur du stock", "en": "Stock value"},
     "dashboard.stat.printed": {"fr": "Filament imprimé", "en": "Filament printed"},
     "dashboard.subtitle": {
-        "fr": "{count} bobines suivies, {loaded} chargées dans la Snapmaker U1",
-        "en": "{count} tracked spools, {loaded} loaded in the Snapmaker U1",
+        "fr": "{count} bobines suivies, {loaded} chargées dans {printer}",
+        "en": "{count} tracked spools, {loaded} loaded in {printer}",
     },
     "dashboard.search": {
         "fr": "Rechercher une bobine, une couleur, une case…",
@@ -75,10 +77,10 @@ _STRINGS: dict[str, dict[str, str]] = {
     "dashboard.loaded": {"fr": "Dans l'imprimante", "en": "In the printer"},
     "dashboard.empty": {
         "fr": "Aucune bobine ne correspond.\n\n"
-        "Ajoutez vos bobines pour que Snapmaker Orca puisse décompter "
+        "Ajoutez vos bobines pour que le trancheur puisse décompter "
         "automatiquement le filament à chaque tranchage.",
         "en": "No spool matches.\n\n"
-        "Add your spools so Snapmaker Orca can automatically deduct "
+        "Add your spools so the slicer can automatically deduct "
         "filament on every slice.",
     },
     "dashboard.see": {"fr": "Voir", "en": "View"},
@@ -141,7 +143,8 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Expected weight on the scale: {g:.0f} g",
     },
     # --- imprimante -------------------------------------------------------
-    "printer.title": {"fr": "Snapmaker U1", "en": "Snapmaker U1"},
+    "printer.title": {"fr": "Imprimante", "en": "Printer"},
+    "printer.custom": {"fr": "Autre imprimante", "en": "Other printer"},
     "printer.subtitle": {
         "fr": "Indiquez quelle bobine occupe chaque emplacement. Le décompte automatique "
         "s'appuie sur cette correspondance pour attribuer sans ambiguïté le filament "
@@ -158,17 +161,19 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Drag a spool onto a slot to load it.",
     },
     "printer.slot": {"fr": "Emplacement {slot}", "en": "Slot {slot}"},
+    "printer.ams": {"fr": "AMS {slot}", "en": "AMS {slot}"},
     "printer.empty": {"fr": "Vide", "en": "Empty"},
     "printer.drop": {"fr": "Déposez une bobine ici", "en": "Drop a spool here"},
     "printer.pick": {"fr": "Choisir…", "en": "Choose…"},
     "printer.remove": {"fr": "Retirer", "en": "Unload"},
-    "printer.freed": {"fr": "Emplacement {slot} libéré", "en": "Slot {slot} freed"},
+    "printer.freed": {"fr": "{place} libéré", "en": "{place} freed"},
     "printer.none": {"fr": "Aucune bobine disponible", "en": "No spool available"},
     "printer.currently": {
         "fr": " (actuellement en {slot})",
         "en": " (currently in {slot})",
     },
     "card.slot": {"fr": "Empl. {slot}", "en": "Slot {slot}"},
+    "card.ams": {"fr": "AMS {slot}", "en": "AMS {slot}"},
     "card.bin": {"fr": "case {name}", "en": "bin {name}"},
     "card.tip": {
         "fr": "{name}\n{remaining:.0f} g restants sur {net:.0f} g\n"
@@ -185,6 +190,19 @@ _STRINGS: dict[str, dict[str, str]] = {
     },
     "history.verify": {"fr": "Vérifier…", "en": "Review…"},
     "history.undo": {"fr": "Annuler le décompte", "en": "Undo deduction"},
+    "history.partial": {"fr": "Impression arrêtée…", "en": "Stopped print…"},
+    "history.partial.done": {
+        "fr": "Décompte de « {name} » ajusté à {grams:.1f} g",
+        "en": "Deduction of “{name}” adjusted to {grams:.1f} g",
+    },
+    "history.partial.mark": {
+        "fr": "impression inachevée",
+        "en": "stopped early",
+    },
+    "history.qty.revised": {
+        "fr": "{actual:.2f} g / {sliced:.2f} g",
+        "en": "{actual:.2f} g / {sliced:.2f} g",
+    },
     "history.filter.all": {"fr": "Tous les tranchages", "en": "All slices"},
     "history.filter.review": {"fr": "À vérifier", "en": "To review"},
     "history.filter.applied": {"fr": "Décomptés", "en": "Deducted"},
@@ -226,6 +244,39 @@ _STRINGS: dict[str, dict[str, str]] = {
         "fr": " · {count} en attente de vérification",
         "en": " · {count} waiting for review",
     },
+    "partial.title": {"fr": "Impression arrêtée", "en": "Stopped print"},
+    "partial.heading": {
+        "fr": "Corriger « {name} »",
+        "en": "Adjust “{name}”",
+    },
+    "partial.explain": {
+        "fr": "Si l'impression a été annulée avant la fin, indiquez le filament "
+        "réellement consommé. Le reste est recrédité sur la bobine. Vous pourrez "
+        "corriger à nouveau tant que le décompte n'est pas annulé.",
+        "en": "If the print was cancelled before the end, enter the filament actually "
+        "used. The unused amount is credited back to the spool. You can correct "
+        "again until the deduction is undone.",
+    },
+    "partial.progress": {"fr": "Avancement", "en": "Completion"},
+    "partial.progress_tip": {
+        "fr": "Applique le même pourcentage à tous les filaments.",
+        "en": "Applies the same percentage to every filament.",
+    },
+    "partial.used": {"fr": "Réellement utilisé", "en": "Actually used"},
+    "partial.sliced": {"fr": "tranché {grams:.2f} g", "en": "sliced {grams:.2f} g"},
+    "partial.preview_restore": {
+        "fr": "{grams:.1f} g seront recrédités au total.",
+        "en": "{grams:.1f} g will be credited back in total.",
+    },
+    "partial.preview_deduct": {
+        "fr": "{grams:.1f} g supplémentaires seront décomptés.",
+        "en": "{grams:.1f} g more will be deducted.",
+    },
+    "partial.preview_none": {
+        "fr": "Aucun écart par rapport au décompte actuel.",
+        "en": "No change from the current deduction.",
+    },
+    "partial.apply": {"fr": "Ajuster le décompte", "en": "Adjust deduction"},
     # --- revue ------------------------------------------------------------
     "review.title": {"fr": "Vérifier un tranchage", "en": "Review a slice"},
     "review.unnamed": {"fr": "Tranchage sans nom", "en": "Untitled slice"},
@@ -394,8 +445,8 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Adjustment of {delta:+.0f} g applied",
     },
     "action.loaded": {
-        "fr": "« {name} » chargée dans l'emplacement {slot}",
-        "en": "“{name}” loaded in slot {slot}",
+        "fr": "« {name} » chargée dans {place}",
+        "en": "“{name}” loaded in {place}",
     },
     "action.unloaded": {
         "fr": "Bobine retirée de l'imprimante",
@@ -426,8 +477,8 @@ _STRINGS: dict[str, dict[str, str]] = {
     "action.menu.weigh": {"fr": "Peser…", "en": "Weigh…"},
     "action.menu.adjust": {"fr": "Corriger le stock…", "en": "Adjust stock…"},
     "action.menu.load": {
-        "fr": "Charger dans l'emplacement",
-        "en": "Load into slot",
+        "fr": "Charger dans l'imprimante",
+        "en": "Load into printer",
     },
     "action.menu.replace": {
         "fr": " (remplace {name})",
@@ -446,32 +497,34 @@ _STRINGS: dict[str, dict[str, str]] = {
     # --- réglages ---------------------------------------------------------
     "settings.title": {"fr": "Réglages", "en": "Settings"},
     "settings.hook": {
-        "fr": "Intégration Snapmaker Orca",
-        "en": "Snapmaker Orca integration",
+        "fr": "Intégration des trancheurs",
+        "en": "Slicer integration",
     },
     "settings.hook.explain": {
-        "fr": "Le hook est un script que Snapmaker Orca exécute au moment où il écrit le "
+        "fr": "Le hook est un script que le trancheur exécute au moment où il écrit le "
         "fichier G-code. Il en lit le grammage et le transmet à cette application, "
         "qui décompte alors le filament sur les bonnes bobines.\n\n"
-        "Trancher pour voir l'aperçu ne suffit pas : le décompte a lieu quand vous "
-        "exportez le G-code ou l'envoyez à l'imprimante.\n\n"
+        "Sur une imprimante Bambu (A1 Mini, X1, P1…), le hook tourne dès le tranchage. "
+        "Sur la Snapmaker U1, Snapmaker Orca ne l'exécute qu'à l'export : le dossier "
+        "temporaire est alors surveillé pour décompter dès l'aperçu.\n\n"
         "Ce réglage appartient au profil d'impression : il doit être posé sur chaque "
         "profil que vous utilisez. Seuls vos profils personnels peuvent être modifiés, "
-        "car les profils système sont réécrits à chaque mise à jour d'Orca.",
-        "en": "The hook is a script Snapmaker Orca runs when it writes the G-code file. "
+        "car les profils système sont réécrits à chaque mise à jour.",
+        "en": "The hook is a script the slicer runs when it writes the G-code file. "
         "It reads the grams used and sends them to this app, which then deducts "
         "filament from the right spools.\n\n"
-        "Slicing for the preview is not enough: deduction happens when you export "
-        "G-code or send it to the printer.\n\n"
+        "On a Bambu printer (A1 Mini, X1, P1…), the hook runs as soon as you slice. "
+        "On the Snapmaker U1, Snapmaker Orca only runs it on export: the temp folder "
+        "is therefore watched so a U1 slice is deducted as soon as the preview is ready.\n\n"
         "This setting belongs to the print profile: it must be set on every profile "
         "you use. Only your personal profiles can be modified, because system "
-        "profiles are rewritten on every Orca update.",
+        "profiles are rewritten on every update.",
     },
     "settings.copy": {"fr": "Copier", "en": "Copy"},
     "settings.copy_tip": {
-        "fr": "À coller dans Orca sous Réglages d'impression > Autres > "
+        "fr": "À coller dans le trancheur sous Réglages d'impression > Autres > "
         "Scripts de post-traitement, pour un profil système.",
-        "en": "Paste in Orca under Print settings > Others > "
+        "en": "Paste in the slicer under Print settings > Others > "
         "Post-processing scripts, for a system profile.",
     },
     "settings.install": {
@@ -489,12 +542,13 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "No personal profile",
     },
     "settings.no_preset_body": {
-        "fr": "Snapmaker Orca ne contient aucun profil d'impression personnel.\n\n"
-        "Dans Orca, dupliquez le profil que vous utilisez (icône d'enregistrement "
-        "à côté du nom du profil), puis revenez ici.",
-        "en": "Snapmaker Orca has no personal print profile.\n\n"
-        "In Orca, duplicate the profile you use (save icon next to the profile "
-        "name), then come back here.",
+        "fr": "Aucun profil d'impression personnel n'a été trouvé dans les trancheurs "
+        "sélectionnés.\n\n"
+        "Dupliquez le profil que vous utilisez (icône d'enregistrement à côté du nom), "
+        "puis revenez ici.",
+        "en": "No personal print profile was found in the selected slicers.\n\n"
+        "Duplicate the profile you use (save icon next to the profile name), "
+        "then come back here.",
     },
     "settings.installed": {
         "fr": "Hook installé sur {count} profil(s) d'impression",
@@ -505,36 +559,47 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Hook removed from {count} profile(s)",
     },
     "settings.orca_open_title": {
-        "fr": "Snapmaker Orca est ouvert",
-        "en": "Snapmaker Orca is open",
+        "fr": "Un trancheur est ouvert",
+        "en": "A slicer is open",
     },
     "settings.orca_open_body": {
-        "fr": "Orca réécrit ses profils en se fermant et annulerait la modification.\n\n"
-        "Fermez Orca, puis réessayez. Continuer quand même ?",
-        "en": "Orca rewrites its profiles on exit and would undo the change.\n\n"
-        "Close Orca, then try again. Continue anyway?",
+        "fr": "Le trancheur réécrit ses profils en se fermant et annulerait la modification.\n\n"
+        "Fermez-le, puis réessayez. Continuer quand même ?",
+        "en": "The slicer rewrites its profiles on exit and would undo the change.\n\n"
+        "Close it, then try again. Continue anyway?",
     },
     "settings.orca_missing": {
-        "fr": "Snapmaker Orca n'a pas été trouvé sur cet ordinateur.",
-        "en": "Snapmaker Orca was not found on this computer.",
+        "fr": "Aucun trancheur compatible n'a été trouvé sur cet ordinateur "
+        "(Snapmaker Orca, Orca Slicer, Bambu Studio).",
+        "en": "No compatible slicer was found on this computer "
+        "(Snapmaker Orca, Orca Slicer, Bambu Studio).",
     },
     "settings.orca_found": {
-        "fr": "Orca détecté : {path}{running}",
-        "en": "Orca detected: {path}{running}",
+        "fr": "Détecté : {names}{running}",
+        "en": "Detected: {names}{running}",
     },
     "settings.orca_running": {
         "fr": " (actuellement ouvert)",
         "en": " (currently open)",
     },
+    "settings.slicers": {
+        "fr": "Trancheurs à relier",
+        "en": "Slicers to connect",
+    },
+    "settings.slicer_found": {"fr": "{name} (détecté)", "en": "{name} (found)"},
+    "settings.slicer_missing": {
+        "fr": "{name} (non installé)",
+        "en": "{name} (not installed)",
+    },
     "settings.no_user_preset": {
-        "fr": "Aucun profil d'impression personnel dans Orca",
-        "en": "No personal print profile in Orca",
+        "fr": "Aucun profil d'impression personnel dans les trancheurs sélectionnés",
+        "en": "No personal print profile in the selected slicers",
     },
     "settings.warn_duplicate": {
-        "fr": "Dupliquez dans Orca le profil d'impression que vous utilisez pour pouvoir "
-        "y poser le hook, ou activez la surveillance de dossier ci-dessous.",
-        "en": "Duplicate in Orca the print profile you use so the hook can be installed, "
-        "or enable folder watching below.",
+        "fr": "Dupliquez dans le trancheur le profil d'impression que vous utilisez pour "
+        "pouvoir y poser le hook, ou activez la surveillance de dossier ci-dessous.",
+        "en": "Duplicate in the slicer the print profile you use so the hook can be "
+        "installed, or enable folder watching below.",
     },
     "settings.warn_none": {
         "fr": "Le hook n'est posé sur aucun profil : aucun tranchage ne sera décompté "
@@ -565,11 +630,16 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Watch an export folder",
     },
     "settings.watch.ph": {
-        "fr": "Dossier où Orca exporte vos G-code",
-        "en": "Folder where Orca exports your G-code",
+        "fr": "Dossier où le trancheur exporte vos G-code",
+        "en": "Folder where the slicer exports your G-code",
     },
     "settings.watch.pick": {"fr": "Dossier à surveiller", "en": "Folder to watch"},
     "settings.prefs": {"fr": "Préférences", "en": "Preferences"},
+    "settings.printer": {"fr": "Imprimante", "en": "Printer"},
+    "settings.printer_tip": {
+        "fr": "Le nombre d'emplacements suit le modèle choisi, sauf pour « Autre ».",
+        "en": "Slot count follows the chosen model, except for “Other”.",
+    },
     "settings.language": {"fr": "Langue de l'interface", "en": "Interface language"},
     "settings.language_tip": {
         "fr": "Le changement s'applique immédiatement.",
@@ -588,8 +658,8 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Printer slots",
     },
     "settings.slots_tip": {
-        "fr": "La Snapmaker U1 dispose de 4 emplacements filament.",
-        "en": "The Snapmaker U1 has 4 filament slots.",
+        "fr": "Nombre d'emplacements filament de l'imprimante.",
+        "en": "Number of filament slots on the printer.",
     },
     "settings.notifications": {
         "fr": "Afficher une notification à chaque décompte",
@@ -690,6 +760,10 @@ _STRINGS: dict[str, dict[str, str]] = {
     "reason.weigh": {"fr": "Pesée de recalage", "en": "Weighing"},
     "reason.adjust": {"fr": "Correction manuelle", "en": "Manual adjustment"},
     "reason.undo": {"fr": "Annulation", "en": "Undo"},
+    "reason.partial": {
+        "fr": "Impression inachevée",
+        "en": "Stopped print",
+    },
     "job.status.applied": {"fr": "Décompté", "en": "Deducted"},
     "job.status.review": {"fr": "À vérifier", "en": "To review"},
     "job.status.reverted": {"fr": "Annulé", "en": "Undone"},

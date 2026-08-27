@@ -16,6 +16,10 @@ def test_english_translations():
     assert t("tab.dashboard") == "Dashboard"
     assert t("settings.language") == "Interface language"
     assert t("history.filter.review") == "To review"
+    assert t("tab.printer") == "Printer"
+    assert t("printer.ams", slot=2) == "AMS 2"
+    assert t("history.partial") == "Stopped print…"
+    assert t("reason.partial") == "Stopped print"
 
 
 def test_unknown_language_falls_back_to_french():

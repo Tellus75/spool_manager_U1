@@ -2,11 +2,12 @@
 
 [Français](README.md) | **English**
 
-Filament inventory coupled with **Snapmaker Orca**. You record the spools on your shelf;
-each time you slice, the app reads the grams used and deducts them from the right spool.
+Filament inventory coupled with **Snapmaker Orca**, **Orca Slicer** and **Bambu Studio**.
+You record the spools on your shelf; each time you slice, the app reads the grams used
+and deducts them from the right spool.
 
-Built for the **Snapmaker U1** and its 4 filament slots, it also works with a
-single-extruder printer (the number of slots is configurable).
+Built for the **Snapmaker U1** and the **Bambu Lab A1 mini**, it also works with another
+printer (the number of slots is then configurable).
 
 ![Dashboard](docs/apercu/tableau-de-bord.png)
 
@@ -50,14 +51,14 @@ On ambiguity, missing material, or insufficient stock, the slice goes to a “to
 queue and nothing is deducted until you decide. Every deduction can be undone from the
 history.
 
-Filling in the 4 slots on the **U1 printer** tab is what makes matching almost certain:
+Filling in the slots on the **Printer** tab is what makes matching almost certain:
 the G-code says which slot was used.
 
 ## Installation
 
 ### Windows installer (recommended)
 
-Download `SpoolManager-1.0.1-Setup.exe` from the [GitHub releases](https://github.com/Tellus75/spool_manager_U1/releases)
+Download `SpoolManager-1.0.2-Setup.exe` from the [GitHub releases](https://github.com/Tellus75/spool_manager_U1/releases)
 and run it. The app installs into your Windows user profile, with no administrator
 rights, and creates a Start menu shortcut.
 
@@ -88,7 +89,7 @@ pip install -r requirements-dev.txt
 powershell -ExecutionPolicy Bypass -File tools/build_installer.ps1
 ```
 
-The installer then lands in `installer\output`. A Git tag such as `v1.0.1` also
+The installer then lands in `installer\output`. A Git tag such as `v1.0.2` also
 triggers a GitHub Actions build.
 
 The PyInstaller output is in `dist/SpoolManager`.

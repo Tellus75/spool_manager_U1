@@ -257,6 +257,117 @@ class TestReviewAndUndo:
         assert reasons == ["undo", "print", "init"]
 
 
+class TestPartialPrint:
+    def test_unused_filament_is_credited_back(self, inv, make_spool):
+        spool_id = make_spool(net=1000, slot=1, material="PLA")
+        job_id, _, _ = inv.ingest(
+            job([ParsedUsage(extruder_index=0, slot=1, grams=38.0, material="PLA")])
+        )
+        usage_id = inv.job_usages(job_id)[0]["id"]
+
+        inv.revise_job(job_id, {usage_id: 20.0})
+
+        assert inv.get_spool(spool_id).remaining_g == pytest.approx(980)
+        assert inv.job_usages(job_id)[0]["grams"] == pytest.approx(20.0)
+        assert inv.get_job(job_id)["total_g"] == pytest.approx(20.0)
+        assert inv.job_was_shortened(job_id)
+
+    def test_cannot_deduct_more_than_the_sliced_amount(self, inv, make_spool):
+        spool_id = make_spool(net=1000, slot=1, material="PLA")
+        job_id, _, _ = inv.ingest(
+            job([ParsedUsage(extruder_index=0, slot=1, grams=38.0, material="PLA")])
+        )
+        usage_id = inv.job_usages(job_id)[0]["id"]
+
+        inv.revise_job(job_id, {usage_id: 80.0})
+
+        assert inv.get_spool(spool_id).remaining_g == pytest.approx(962)
+        assert inv.job_usages(job_id)[0]["grams"] == pytest.approx(38.0)
+
+    def test_can_be_corrected_again(self, inv, make_spool):
+        spool_id = make_spool(net=1000, slot=1, material="PLA")
+        job_id, _, _ = inv.ingest(
+            job([ParsedUsage(extruder_index=0, slot=1, grams=40.0, material="PLA")])
+        )
+        usage_id = inv.job_usages(job_id)[0]["id"]
+
+        inv.revise_job(job_id, {usage_id: 20.0})
+        inv.revise_job(job_id, {usage_id: 10.0})
+        inv.revise_job(job_id, {usage_id: 30.0})
+
+        assert inv.get_spool(spool_id).remaining_g == pytest.approx(970)
+        assert inv.job_usages(job_id)[0]["grams"] == pytest.approx(30.0)
+
+    def test_undo_after_a_partial_print_restores_the_spool(self, inv, make_spool):
+        spool_id = make_spool(net=1000, slot=1, material="PLA")
+        job_id, _, _ = inv.ingest(
+            job([ParsedUsage(extruder_index=0, slot=1, grams=40.0, material="PLA")])
+        )
+        usage_id = inv.job_usages(job_id)[0]["id"]
+        inv.revise_job(job_id, {usage_id: 12.0})
+        inv.revert_job(job_id)
+
+        assert inv.get_spool(spool_id).remaining_g == pytest.approx(1000)
+        reasons = [m["reason"] for m in inv.movements(spool_id)]
+        assert reasons == ["undo", "partial", "print", "init"]
+
+    def test_multi_filament_can_be_revised_independently(self, inv, make_spool):
+        pla = make_spool(net=1000, slot=1, material="PLA")
+        petg = make_spool(net=1000, slot=3, material="PETG")
+        job_id, _, _ = inv.ingest(
+            job(
+                [
+                    ParsedUsage(extruder_index=0, slot=1, grams=14.0, material="PLA"),
+                    ParsedUsage(extruder_index=2, slot=3, grams=6.0, material="PETG"),
+                ]
+            )
+        )
+        usages = {int(u["spool_id"]): int(u["id"]) for u in inv.job_usages(job_id)}
+
+        inv.revise_job(job_id, {usages[pla]: 5.0})
+
+        assert inv.get_spool(pla).remaining_g == pytest.approx(995)
+        assert inv.get_spool(petg).remaining_g == pytest.approx(994)
+        assert inv.get_job(job_id)["total_g"] == pytest.approx(11.0)
+
+    def test_does_nothing_unless_the_job_was_applied(self, inv, make_spool):
+        spool_id = make_spool(net=1000, slot=1, material="PLA")
+        job_id, status, _ = inv.ingest(
+            job([ParsedUsage(extruder_index=0, slot=1, grams=20.0, material="ABS")])
+        )
+        assert status == JOB_REVIEW
+        usage_id = inv.job_usages(job_id)[0]["id"]
+
+        inv.revise_job(job_id, {usage_id: 5.0})
+
+        assert inv.get_spool(spool_id).remaining_g == 1000
+        assert inv.job_usages(job_id)[0]["grams"] == pytest.approx(20.0)
+
+    def test_printed_stats_drop_the_unused_filament(self, inv, make_spool):
+        make_spool(net=1000, slot=1, material="PLA")
+        job_id, _, _ = inv.ingest(
+            job([ParsedUsage(extruder_index=0, slot=1, grams=12.0, material="PLA")])
+        )
+        usage_id = inv.job_usages(job_id)[0]["id"]
+        inv.revise_job(job_id, {usage_id: 4.0})
+
+        assert inv.stats()["total_printed_g"] == pytest.approx(4.0)
+        assert inv.consumption_by_material() == [("PLA", 4.0)]
+
+    def test_scales_recorded_cost(self, inv, make_spool):
+        make_spool(net=1000, slot=1, material="PLA")
+        parsed = job(
+            [ParsedUsage(extruder_index=0, slot=1, grams=40.0, material="PLA")],
+            total_cost=1.0,
+        )
+        job_id, _, _ = inv.ingest(parsed)
+        usage_id = inv.job_usages(job_id)[0]["id"]
+
+        inv.revise_job(job_id, {usage_id: 10.0})
+
+        assert inv.get_job(job_id)["total_cost"] == pytest.approx(0.25)
+
+
 class TestStats:
     def test_totals(self, inv, make_spool):
         make_spool(net=1000, price=25.0)

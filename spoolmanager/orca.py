@@ -1,9 +1,9 @@
-"""Passerelle vers Snapmaker Orca : lecture des profils filament et pose du hook.
+"""Passerelle vers les trancheurs Orca / Bambu : profils filament et pose du hook.
 
 Deux précautions ont dicté cette implémentation :
 
-- `Snapmaker_Orca.conf` se termine par une somme de contrôle MD5 : on ne l'écrit jamais.
-- Les profils système sont réécrits à chaque mise à jour d'Orca : le hook n'est posé
+- Les fichiers `.conf` se terminent par une somme de contrôle MD5 : on ne les écrit jamais.
+- Les profils système sont réécrits à chaque mise à jour : le hook n'est posé
   que dans les profils de process appartenant à l'utilisateur.
 """
 
@@ -15,7 +15,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import config
+from . import config, slicers
 
 # Profils de base, jamais sélectionnables directement dans Orca.
 _NON_SELECTABLE = {"false", "0"}
@@ -45,7 +45,11 @@ def orca_dir() -> Path:
 
 
 def is_installed() -> bool:
-    return orca_dir().is_dir()
+    return any(slicer.is_installed() for slicer in slicers.SLICERS)
+
+
+def _config_roots(enabled_raw: str = "") -> list[Path]:
+    return [path for _slicer, path in slicers.installed_config_dirs(enabled_raw)]
 
 
 def _first(value) -> str:
@@ -69,18 +73,15 @@ def _load_json(path: Path) -> dict | None:
         return None
 
 
-def _filament_files() -> list[Path]:
-    root = orca_dir()
-    if not root.is_dir():
-        return []
+def _filament_files(enabled_raw: str = "") -> list[Path]:
     files: list[Path] = []
-    for base in (root / "user", root / "system"):
-        if base.is_dir():
-            files.extend(p for p in base.rglob("*.json") if p.parent.name == "filament")
-    # OrcaFilamentLibrary range ses profils dans des sous-dossiers par marque.
-    library = root / "system" / "OrcaFilamentLibrary" / "filament"
-    if library.is_dir():
-        files.extend(library.rglob("*.json"))
+    for root in _config_roots(enabled_raw):
+        for base in (root / "user", root / "system"):
+            if base.is_dir():
+                files.extend(p for p in base.rglob("*.json") if p.parent.name == "filament")
+        library = root / "system" / "OrcaFilamentLibrary" / "filament"
+        if library.is_dir():
+            files.extend(library.rglob("*.json"))
     return sorted(set(files))
 
 
@@ -147,11 +148,13 @@ def hook_command() -> str:
     return f'"{Path(sys.executable)}" "{config.hook_script_path()}"'
 
 
-def user_process_presets() -> list[Path]:
-    base = orca_dir() / "user"
-    if not base.is_dir():
-        return []
-    return sorted(p for p in base.rglob("*.json") if p.parent.name == "process")
+def user_process_presets(enabled_raw: str = "") -> list[Path]:
+    presets: list[Path] = []
+    for root in _config_roots(enabled_raw):
+        base = root / "user"
+        if base.is_dir():
+            presets.extend(p for p in base.rglob("*.json") if p.parent.name == "process")
+    return sorted(set(presets))
 
 
 def read_post_process(path: Path) -> list[str]:
@@ -221,21 +224,22 @@ def _write_preset(path: Path, data: dict) -> bool:
         return False
 
 
-def hook_status() -> list[tuple[Path, bool]]:
-    return [(path, is_hooked(path)) for path in user_process_presets()]
+def hook_status(enabled_raw: str = "") -> list[tuple[Path, bool]]:
+    return [(path, is_hooked(path)) for path in user_process_presets(enabled_raw)]
 
 
 def is_orca_running() -> bool:
-    """Orca réécrit ses profils en quittant : mieux vaut le fermer avant d'y toucher."""
+    """Les trancheurs réécrivent leurs profils en quittant : mieux vaut les fermer avant."""
+    names = [name.lower() for slicer in slicers.SLICERS for name in slicer.process_names]
     try:
         creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         output = subprocess.run(
-            ["tasklist", "/FI", "IMAGENAME eq snapmaker-orca.exe", "/NH"],
+            ["tasklist", "/NH"],
             capture_output=True,
             text=True,
             timeout=8,
             creationflags=creation_flags,
-        ).stdout
-        return "snapmaker-orca.exe" in output.lower()
+        ).stdout.lower()
+        return any(name in output for name in names)
     except (OSError, subprocess.SubprocessError):
         return False

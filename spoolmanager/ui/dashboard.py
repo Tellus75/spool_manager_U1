@@ -174,6 +174,7 @@ class Dashboard(QWidget):
                 "dashboard.subtitle",
                 count=int(stats["spool_count"]),
                 loaded=loaded,
+                printer=self.inventory.printer_display_name(),
             )
         )
         self._refresh_banner(stats)
@@ -259,7 +260,9 @@ class Dashboard(QWidget):
         spools.sort(key=spool_sort_key)
 
         for spool in spools:
-            card = SpoolCard(spool, threshold)
+            card = SpoolCard(
+                spool, threshold, slot_kind=self.inventory.printer().slot_kind
+            )
             card.activated.connect(self.actions.edit)
             card.menu_requested.connect(self.actions.show_menu)
             self._flow.addWidget(card)

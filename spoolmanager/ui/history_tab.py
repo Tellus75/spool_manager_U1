@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .. import printers
 from ..i18n import job_status_label, plural, t
 from ..inventory import Inventory
 from ..models import (
@@ -29,6 +30,7 @@ from ..models import (
     format_timestamp,
 )
 from . import theme
+from .dialogs import PartialPrintDialog
 from .review_dialog import ReviewDialog
 
 FILTERS = [
@@ -94,6 +96,10 @@ class HistoryTab(QWidget):
         self._undo_button = QPushButton(t("history.undo"))
         self._undo_button.clicked.connect(self._undo_selected)
         layout.addWidget(self._undo_button, 0, Qt.AlignTop)
+
+        self._partial_button = QPushButton(t("history.partial"))
+        self._partial_button.clicked.connect(self._partial_selected)
+        layout.addWidget(self._partial_button, 0, Qt.AlignTop)
         return layout
 
     def _build_table(self) -> QTableWidget:
@@ -208,6 +214,7 @@ class HistoryTab(QWidget):
             self._detail_summary.setText(t("history.select"))
             self._review_button.setEnabled(False)
             self._undo_button.setEnabled(False)
+            self._partial_button.setEnabled(False)
             return
 
         job = self.inventory.get_job(job_id)
@@ -223,16 +230,22 @@ class HistoryTab(QWidget):
             t("history.detected", source=source),
         ]
         summary = " · ".join(p for p in parts if p)
+        if self.inventory.job_was_shortened(job_id):
+            summary += f" · {t('history.partial.mark')}"
         if job["note"]:
             summary += f"\n{job['note']}"
         self._detail_summary.setText(summary)
 
+        sliced_map = self.inventory.sliced_grams_map(job_id)
         for usage in self.inventory.job_usages(job_id):
             spool = (
                 self.inventory.get_spool(usage["spool_id"]) if usage["spool_id"] else None
             )
             slot = usage["extruder_index"]
-            source = t("history.slot", slot=slot) if slot is not None else t("history.filament")
+            kind = printers.kind_for_gcode_printer(job["printer"] or "")
+            source = (
+                printers.slot_caption(slot, kind) if slot is not None else t("history.filament")
+            )
             if usage["material"]:
                 source += f" · {usage['material']}"
 
@@ -243,7 +256,11 @@ class HistoryTab(QWidget):
             else:
                 target = t("history.unassigned")
 
-            item = QTreeWidgetItem([source, target, f"{usage['grams']:.2f} g"])
+            qty = f"{usage['grams']:.2f} g"
+            sliced = sliced_map.get(int(usage["id"]), float(usage["grams"]))
+            if abs(sliced - float(usage["grams"])) >= 0.01:
+                qty = t("history.qty.revised", actual=usage["grams"], sliced=sliced)
+            item = QTreeWidgetItem([source, target, qty])
             if usage["color_hex"]:
                 item.setForeground(0, QColor(theme.safe_color(usage["color_hex"])))
             if spool is None and usage["grams"] > 0:
@@ -254,6 +271,7 @@ class HistoryTab(QWidget):
 
         self._review_button.setEnabled(job["status"] == JOB_REVIEW)
         self._undo_button.setEnabled(job["status"] == JOB_APPLIED)
+        self._partial_button.setEnabled(job["status"] == JOB_APPLIED)
 
     def _open_selected(self) -> None:
         job_id = self._selected_job_id()
@@ -288,6 +306,23 @@ class HistoryTab(QWidget):
         self.message.emit(
             t("history.undone", name=job["project_name"])
         )
+        self.refresh()
+
+    def _partial_selected(self) -> None:
+        job_id = self._selected_job_id()
+        if job_id is None:
+            return
+
+        dialog = PartialPrintDialog(self.inventory, job_id, self)
+        if not dialog.exec():
+            return
+
+        self.inventory.revise_job(job_id, dialog.actual_by_usage())
+        job = self.inventory.get_job(job_id)
+        grams = float(job["total_g"]) if job else 0.0
+        name = job["project_name"] if job else ""
+        self.changed.emit()
+        self.message.emit(t("history.partial.done", name=name, grams=grams))
         self.refresh()
 
     def show_pending(self) -> None:

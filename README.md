@@ -2,15 +2,16 @@
 
 **Français** | [English](README.en.md)
 
-Filament inventory for Snapmaker Orca, built for the Snapmaker U1.
+Filament inventory for Snapmaker Orca, Orca Slicer and Bambu Studio.
 Full English documentation: [README.en.md](README.en.md).
 
-Gestion du stock de filament couplée à **Snapmaker Orca**. Vous saisissez les bobines
-posées sur votre étagère ; à chaque tranchage, l'application récupère le grammage
-consommé et le décompte automatiquement de la bonne bobine.
+Gestion du stock de filament couplée à **Snapmaker Orca**, **Orca Slicer** et
+**Bambu Studio**. Vous saisissez les bobines posées sur votre étagère ; à chaque
+tranchage, l'application récupère le grammage consommé et le décompte automatiquement
+de la bonne bobine.
 
-Conçue pour la **Snapmaker U1** et ses 4 emplacements filament, elle fonctionne aussi
-avec une imprimante mono-extrudeur (le nombre d'emplacements est réglable).
+Conçue pour la **Snapmaker U1** et la **Bambu Lab A1 mini**, elle fonctionne aussi
+avec une autre imprimante (le nombre d'emplacements est alors réglable).
 
 ![Tableau de bord](docs/apercu/tableau-de-bord.png)
 
@@ -56,14 +57,14 @@ autres. En cas d'ambiguïté, de matière absente du stock ou de stock insuffisa
 tranchage part dans une file « à vérifier » et rien n'est décompté tant que vous n'avez
 pas tranché. Chaque décompte reste annulable depuis l'historique.
 
-Renseigner les 4 emplacements dans l'onglet **Imprimante U1** est ce qui rend
+Renseigner les emplacements dans l'onglet **Imprimante** est ce qui rend
 l'attribution quasi certaine : le G-code indique quel emplacement est consommé.
 
 ## Installation
 
 ### Installeur Windows (recommandé)
 
-Téléchargez `SpoolManager-1.0.1-Setup.exe` depuis les [releases GitHub](https://github.com/Tellus75/spool_manager_U1/releases)
+Téléchargez `SpoolManager-1.0.2-Setup.exe` depuis les [releases GitHub](https://github.com/Tellus75/spool_manager_U1/releases)
 et lancez-le. L'application s'installe dans votre profil Windows, sans droits
 administrateur, puis crée un raccourci dans le menu Démarrer.
 
@@ -94,7 +95,7 @@ pip install -r requirements-dev.txt
 powershell -ExecutionPolicy Bypass -File tools/build_installer.ps1
 ```
 
-L'installeur se trouve alors dans `installer\output`. Un tag Git `v1.0.1` déclenche
+L'installeur se trouve alors dans `installer\output`. Un tag Git `v1.0.2` déclenche
 aussi la construction sur GitHub Actions.
 
 Le résultat est dans `dist/SpoolManager`.

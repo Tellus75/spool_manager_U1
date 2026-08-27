@@ -69,9 +69,17 @@ class SpoolActions(QObject):
         spool = self.inventory.get_spool(spool_id)
         if spool is None:
             return
+        from ..printers import slot_caption
+
         self.inventory.load_into_slot(spool_id, slot)
         self.changed.emit()
-        self.message.emit(t("action.loaded", name=spool.display_name, slot=slot))
+        self.message.emit(
+            t(
+                "action.loaded",
+                name=spool.display_name,
+                place=slot_caption(slot, self.inventory.printer().slot_kind),
+            )
+        )
 
     def unload(self, spool_id: int) -> None:
         self.inventory.unload_spool(spool_id)
@@ -118,11 +126,14 @@ class SpoolActions(QObject):
         self._add(menu, t("action.menu.adjust"), lambda: self.adjust(spool_id))
         menu.addSeparator()
 
+        from ..printers import slot_caption
+
         load_menu = menu.addMenu(t("action.menu.load"))
+        kind = self.inventory.printer().slot_kind
         for slot in range(1, self.inventory.slot_count() + 1):
             occupant = self.inventory.slots().get(slot)
             suffix = t("action.menu.replace", name=occupant.display_name) if occupant else ""
-            action = QAction(f"{t('printer.slot', slot=slot)}{suffix}", menu)
+            action = QAction(f"{slot_caption(slot, kind)}{suffix}", menu)
             action.setEnabled(spool.loaded_slot != slot)
             action.triggered.connect(lambda _=False, s=slot: self.load_into_slot(spool_id, s))
             load_menu.addAction(action)

@@ -1,4 +1,4 @@
-"""Vue des emplacements filament de la Snapmaker U1.
+"""Vue des emplacements filament de l'imprimante.
 
 Déclarer quelle bobine occupe quel emplacement est ce qui permet à l'appariement
 automatique d'être fiable : le G-code indique l'emplacement consommé, l'application
@@ -35,9 +35,10 @@ class SlotCard(QFrame):
     clear_requested = Signal(int)
     pick_requested = Signal(int)
 
-    def __init__(self, slot: int, parent=None):
+    def __init__(self, slot: int, parent=None, *, slot_kind: str = "tool"):
         super().__init__(parent)
         self.slot = slot
+        self._slot_kind = slot_kind
         self.spool: Spool | None = None
         self.setAcceptDrops(True)
         self.setMinimumHeight(158)
@@ -47,8 +48,9 @@ class SlotCard(QFrame):
         layout.setSpacing(9)
 
         header = QHBoxLayout()
-        number = QLabel(t("printer.slot", slot=slot))
+        number = QLabel(self._caption())
         number.setStyleSheet(f"color: {theme.MUTED}; font-size: 11px; font-weight: 700;")
+        self._number = number
         header.addWidget(number)
         header.addStretch(1)
         self._dot = ColorDot("#2A2E36", 18)
@@ -89,6 +91,11 @@ class SlotCard(QFrame):
         layout.addLayout(buttons)
 
         self.set_spool(None, 150)
+
+    def _caption(self) -> str:
+        from ..printers import slot_caption
+
+        return slot_caption(self.slot, self._slot_kind)
 
     def set_spool(self, spool: Spool | None, low_threshold: float) -> None:
         self.spool = spool
@@ -139,21 +146,22 @@ class SlotCard(QFrame):
 
 
 class PrinterTab(QWidget):
-    """Les emplacements de la U1 en haut, les bobines disponibles en dessous."""
+    """Les emplacements de l'imprimante en haut, les bobines disponibles en dessous."""
 
     def __init__(self, inventory: Inventory, actions: SpoolActions, parent=None):
         super().__init__(parent)
         self.inventory = inventory
         self.actions = actions
         self._slot_cards: dict[int, SlotCard] = {}
+        self._slot_kind = ""
 
         root = QVBoxLayout(self)
         root.setContentsMargins(22, 18, 22, 18)
         root.setSpacing(15)
 
-        title = QLabel(t("printer.title"))
-        title.setProperty("role", "title")
-        root.addWidget(title)
+        self._title = QLabel(inventory.printer_display_name())
+        self._title.setProperty("role", "title")
+        root.addWidget(self._title)
 
         subtitle = QLabel(t("printer.subtitle"))
         subtitle.setProperty("role", "subtitle")
@@ -190,7 +198,7 @@ class PrinterTab(QWidget):
         self._slot_cards.clear()
 
         for slot in range(1, self.inventory.slot_count() + 1):
-            card = SlotCard(slot)
+            card = SlotCard(slot, slot_kind=self.inventory.printer().slot_kind)
             card.spool_dropped.connect(self.actions.load_into_slot)
             card.clear_requested.connect(self._on_clear)
             card.pick_requested.connect(self._on_pick)
@@ -200,7 +208,11 @@ class PrinterTab(QWidget):
     def _on_clear(self, slot: int) -> None:
         self.inventory.unload_slot(slot)
         self.actions.changed.emit()
-        self.actions.message.emit(t("printer.freed", slot=slot))
+        from ..printers import slot_caption
+
+        self.actions.message.emit(
+            t("printer.freed", slot=slot, place=slot_caption(slot, self.inventory.printer().slot_kind))
+        )
 
     def _on_pick(self, slot: int) -> None:
         menu = QMenu(self)
@@ -221,7 +233,13 @@ class PrinterTab(QWidget):
         menu.exec(self._slot_cards[slot].mapToGlobal(self._slot_cards[slot].rect().center()))
 
     def refresh(self) -> None:
-        if len(self._slot_cards) != self.inventory.slot_count():
+        printer = self.inventory.printer()
+        self._title.setText(self.inventory.printer_display_name())
+        if (
+            len(self._slot_cards) != self.inventory.slot_count()
+            or self._slot_kind != printer.slot_kind
+        ):
+            self._slot_kind = printer.slot_kind
             self._build_slots()
 
         threshold = self.inventory.low_threshold()
@@ -239,7 +257,7 @@ class PrinterTab(QWidget):
             (s for s in self.inventory.list_spools() if not s.is_loaded), key=spool_sort_key
         )
         for spool in available:
-            card = SpoolCard(spool, threshold)
+            card = SpoolCard(spool, threshold, slot_kind=printer.slot_kind)
             card.activated.connect(self.actions.edit)
             card.menu_requested.connect(self.actions.show_menu)
             self._flow.addWidget(card)

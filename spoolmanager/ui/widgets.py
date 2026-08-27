@@ -190,10 +190,11 @@ class SpoolCard(QFrame):
     activated = Signal(int)
     menu_requested = Signal(int, QPoint)
 
-    def __init__(self, spool: Spool, low_threshold: float, parent=None):
+    def __init__(self, spool: Spool, low_threshold: float, parent=None, *, slot_kind: str = "tool"):
         super().__init__(parent)
         self.spool = spool
         self._low_threshold = low_threshold
+        self._slot_kind = slot_kind
         self._selected = False
         self._press_position = QPoint()
 
@@ -275,7 +276,11 @@ class SpoolCard(QFrame):
 
         self._material.setText(spool.material or "?")
         if spool.loaded_slot:
-            self._slot_chip.setText(t("card.slot", slot=spool.loaded_slot))
+            from ..printers import slot_caption
+
+            self._slot_chip.setText(
+                slot_caption(spool.loaded_slot, self._slot_kind, compact=True)
+            )
             self._slot_chip.show()
         else:
             self._slot_chip.hide()

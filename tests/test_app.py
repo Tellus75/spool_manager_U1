@@ -135,11 +135,13 @@ class TestUndo:
         send_job(window)
         window.history._table.selectRow(0)
         assert window.history._undo_button.isEnabled()
+        assert window.history._partial_button.isEnabled()
         assert not window.history._review_button.isEnabled()
 
         window.history._undo_selected()
         window.history._table.selectRow(0)
         assert not window.history._undo_button.isEnabled()
+        assert not window.history._partial_button.isEnabled()
 
 
 class TestHistoryFilters:
@@ -167,20 +169,68 @@ class TestHistoryFilters:
         assert tree.topLevelItem(0).text(2) == "14.38 g"
 
 
+class TestStoppedPrint:
+    def test_revising_from_history_credits_unused_filament(self, window):
+        send_job(window)
+        job_id = window.inventory.list_jobs()[0]["id"]
+        pla_usage = next(
+            u for u in window.inventory.job_usages(job_id) if u["material"] == "PLA"
+        )
+
+        window.inventory.revise_job(job_id, {int(pla_usage["id"]): 5.0})
+        window.refresh_all()
+        window.history._table.selectRow(0)
+
+        assert window.inventory.slots()[1].remaining_g == pytest.approx(995.0)
+        assert window.inventory.slots()[3].remaining_g == pytest.approx(996.02)
+        assert "impression inachevée" in window.history._detail_summary.text()
+        assert window.history._detail_tree.topLevelItem(0).text(2) == "5.00 g / 14.38 g"
+        assert window.history._partial_button.isEnabled()
+
+    def test_partial_dialog_caps_at_the_sliced_weight(self, window):
+        from spoolmanager.ui.dialogs import PartialPrintDialog
+
+        send_job(window)
+        job_id = window.inventory.list_jobs()[0]["id"]
+        dialog = PartialPrintDialog(window.inventory, job_id)
+
+        assert set(dialog.actual_by_usage()) == {
+            int(u["id"]) for u in window.inventory.job_usages(job_id) if u["grams"] > 0
+        }
+        first = next(iter(dialog._spins.values()))
+        first.setValue(first.maximum() + 10)
+        assert first.value() == first.maximum()
+
+
 class TestSettings:
     def test_preferences_are_persisted(self, window):
         settings = window.settings
         settings._threshold.setValue(250)
+        custom = settings._printer.findData("custom")
+        settings._printer.setCurrentIndex(custom)
         settings._slots.setValue(2)
 
         assert window.inventory.low_threshold() == 250
         assert window.inventory.slot_count() == 2
 
     def test_changing_slot_count_rebuilds_the_printer_view(self, window):
+        custom = window.settings._printer.findData("custom")
+        window.settings._printer.setCurrentIndex(custom)
         window.settings._slots.setValue(2)
         window.printer.refresh()
 
         assert len(window.printer._slot_cards) == 2
+
+    def test_a1_mini_uses_ams_slot_labels(self, window):
+        a1 = window.settings._printer.findData("bambu_a1_mini")
+        window.settings._printer.setCurrentIndex(a1)
+        window.refresh_all()
+
+        assert window.inventory.slot_count() == 4
+        assert not window.settings._slots.isEnabled()
+        assert window.printer._title.text() == "Bambu Lab A1 mini"
+        assert window.printer._slot_cards[1]._number.text() == "AMS 1"
+        assert "Bambu Lab A1 mini" in window.dashboard._subtitle.text()
 
     def test_watch_folder_setting_reaches_the_watcher(self, window, tmp_path):
         exports = tmp_path / "exports"

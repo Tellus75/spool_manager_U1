@@ -524,5 +524,140 @@ class AdjustDialog(QDialog):
         layout.addWidget(buttons)
 
 
+class PartialPrintDialog(QDialog):
+    """Corrige le poids réellement consommé d'une impression arrêtée avant la fin."""
+
+    def __init__(self, inventory: Inventory, job_id: int, parent=None):
+        super().__init__(parent)
+        self.inventory = inventory
+        self.job_id = job_id
+        self._spins: dict[int, QDoubleSpinBox] = {}
+        self._currents: dict[int, float] = {}
+        self._sliced: dict[int, float] = {}
+        self._updating = False
+
+        job = inventory.get_job(job_id)
+        name = (job["project_name"] if job else "") or t("history.unnamed")
+        self.setWindowTitle(t("partial.title"))
+        self.setMinimumWidth(460)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 18, 20, 18)
+        layout.setSpacing(12)
+
+        title = QLabel(t("partial.heading", name=name))
+        title.setProperty("role", "title")
+        layout.addWidget(title)
+
+        explanation = QLabel(t("partial.explain"))
+        explanation.setProperty("role", "subtitle")
+        explanation.setWordWrap(True)
+        layout.addWidget(explanation)
+
+        form = QFormLayout()
+        form.setSpacing(10)
+
+        self._progress = QDoubleSpinBox()
+        self._progress.setRange(0, 100)
+        self._progress.setDecimals(0)
+        self._progress.setSuffix(" %")
+        self._progress.setToolTip(t("partial.progress_tip"))
+        self._progress.valueChanged.connect(self._apply_progress)
+        form.addRow(t("partial.progress"), self._progress)
+
+        sliced_map = inventory.sliced_grams_map(job_id)
+        for usage in inventory.job_usages(job_id):
+            sliced = sliced_map.get(int(usage["id"]), float(usage["grams"]))
+            if sliced <= 0:
+                continue
+            uid = int(usage["id"])
+            spool = (
+                inventory.get_spool(usage["spool_id"]) if usage["spool_id"] else None
+            )
+            label = spool.display_name if spool else (usage["material"] or t("history.filament"))
+            slot = usage["extruder_index"]
+            if slot is not None:
+                label = f"{t('history.slot', slot=slot)} · {label}"
+
+            spin = QDoubleSpinBox()
+            spin.setRange(0, sliced)
+            spin.setDecimals(2)
+            spin.setSuffix(" g")
+            spin.setValue(float(usage["grams"]))
+            spin.setToolTip(t("partial.sliced", grams=sliced))
+            spin.valueChanged.connect(lambda _value: self._on_grams_changed())
+
+            caption = QLabel(f"{label}\n{t('partial.sliced', grams=sliced)}")
+            caption.setProperty("role", "muted")
+            form.addRow(caption, spin)
+
+            self._spins[uid] = spin
+            self._currents[uid] = float(usage["grams"])
+            self._sliced[uid] = sliced
+
+        layout.addLayout(form)
+
+        self._preview = QLabel()
+        self._preview.setWordWrap(True)
+        layout.addWidget(self._preview)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.button(QDialogButtonBox.Ok).setText(t("partial.apply"))
+        buttons.button(QDialogButtonBox.Ok).setProperty("variant", "primary")
+        buttons.button(QDialogButtonBox.Cancel).setText(t("cancel"))
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        self._sync_progress_from_grams()
+        self._update_preview()
+
+    def _apply_progress(self, percent: float) -> None:
+        if self._updating:
+            return
+        self._updating = True
+        try:
+            for uid, spin in self._spins.items():
+                spin.setValue(round(self._sliced[uid] * percent / 100.0, 2))
+        finally:
+            self._updating = False
+        self._update_preview()
+
+    def _on_grams_changed(self) -> None:
+        if self._updating:
+            return
+        self._sync_progress_from_grams()
+        self._update_preview()
+
+    def _sync_progress_from_grams(self) -> None:
+        sliced_total = sum(self._sliced.values())
+        if sliced_total <= 0:
+            return
+        actual_total = sum(spin.value() for spin in self._spins.values())
+        percent = round(100.0 * actual_total / sliced_total)
+        self._updating = True
+        try:
+            self._progress.setValue(max(0, min(100, percent)))
+        finally:
+            self._updating = False
+
+    def _update_preview(self) -> None:
+        net = sum(
+            self._currents[uid] - spin.value() for uid, spin in self._spins.items()
+        )
+        if abs(net) < 0.05:
+            self._preview.setText(t("partial.preview_none"))
+            self._preview.setStyleSheet(f"color: {theme.MUTED};")
+        elif net > 0:
+            self._preview.setText(t("partial.preview_restore", grams=net))
+            self._preview.setStyleSheet(f"color: {theme.SUCCESS};")
+        else:
+            self._preview.setText(t("partial.preview_deduct", grams=abs(net)))
+            self._preview.setStyleSheet(f"color: {theme.WARNING};")
+
+    def actual_by_usage(self) -> dict[int, float]:
+        return {uid: spin.value() for uid, spin in self._spins.items()}
+
+
 def state_label(state: str) -> str:
     return translated_state(state)
