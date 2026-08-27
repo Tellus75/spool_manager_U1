@@ -58,7 +58,7 @@ l'attribution quasi certaine : le G-code indique quel emplacement est consommé.
 
 ### Installeur Windows (recommandé)
 
-Téléchargez `SpoolManager-1.0.0-Setup.exe` depuis les [releases GitHub](https://github.com/serge/spool-manager/releases)
+Téléchargez `SpoolManager-1.0.0-Setup.exe` depuis les [releases GitHub](https://github.com/Tellus75/spool-manager/releases)
 et lancez-le. L'application s'installe dans votre profil Windows, sans droits
 administrateur, puis crée un raccourci dans le menu Démarrer.
 

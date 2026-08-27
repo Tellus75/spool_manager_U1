@@ -6,7 +6,7 @@
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "Spool Manager"
 #define MyAppExeName "SpoolManager.exe"
-#define MyAppURL "https://github.com/serge/spool-manager"
+#define MyAppURL "https://github.com/Tellus75/spool-manager"
 
 #ifndef OutputDirOverride
   #define OutputDirOverride "output"
