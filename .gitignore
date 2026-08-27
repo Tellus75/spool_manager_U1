@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+build/
+dist/
+*.egg-info/
+
+# Installeur compilé (reconstruit par le workflow GitHub)
+installer/output/
+
+# G-codes de vérification : trop lourds, et les empreintes de test suffisent
+*.gcode
+!tests/fixtures/*.gcode
+tools/_capture.ps1
