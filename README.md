@@ -1,5 +1,10 @@
 # Spool Manager
 
+**Français** | [English](README.en.md)
+
+Filament inventory for Snapmaker Orca, built for the Snapmaker U1.
+Full English documentation: [README.en.md](README.en.md).
+
 Gestion du stock de filament couplée à **Snapmaker Orca**. Vous saisissez les bobines
 posées sur votre étagère ; à chaque tranchage, l'application récupère le grammage
 consommé et le décompte automatiquement de la bonne bobine.
