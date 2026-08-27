@@ -22,8 +22,7 @@ python -m PyInstaller --noconfirm --clean SpoolManager.spec
 Write-Host "Installeur Inno Setup…"
 # OneDrive et Windows Defender verrouillent souvent un gros .exe LZMA en cours
 # d'écriture dans Documents : on compile une copie hors du dossier, en zip.
-$work = Join-Path $env:TEMP "sm-innosetup-work"
-if (Test-Path $work) { Remove-Item $work -Recurse -Force }
+$work = Join-Path $env:TEMP ("sm-innosetup-work-" + [guid]::NewGuid().ToString("N").Substring(0, 8))
 New-Item -ItemType Directory -Force -Path "$work\dist","$work\docs","$work\installer" | Out-Null
 cmd /c "robocopy `"dist\SpoolManager`" `"$work\dist\SpoolManager`" /E /NFL /NDL /NJH /NJS /nc /ns /np" | Out-Null
 Copy-Item "docs\spoolmanager.ico" "$work\docs\"

@@ -51,11 +51,13 @@ DEFAULT_SLOT_COUNT = 4
 
 
 def format_timestamp(value: str) -> str:
-    """Affiche un horodatage ISO au format français court."""
+    """Affiche un horodatage ISO au format de la langue courante."""
     if not value:
         return ""
+    from .i18n import t
+
     try:
-        return datetime.fromisoformat(value).strftime("%d/%m/%Y %H:%M")
+        return datetime.fromisoformat(value).strftime(t("date.format"))
     except ValueError:
         return value.replace("T", " ")
 

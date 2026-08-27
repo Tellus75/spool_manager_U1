@@ -1,7 +1,14 @@
 import pytest
 
-from spoolmanager import db
+from spoolmanager import db, i18n
 from spoolmanager.inventory import Inventory
+
+
+@pytest.fixture(autouse=True)
+def _french_ui():
+    i18n.set_language("fr")
+    yield
+    i18n.set_language("fr")
 
 
 @pytest.fixture(autouse=True)

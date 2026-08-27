@@ -63,12 +63,13 @@ l'attribution quasi certaine : le G-code indique quel emplacement est consommé.
 
 ### Installeur Windows (recommandé)
 
-Téléchargez `SpoolManager-1.0.0-Setup.exe` depuis les [releases GitHub](https://github.com/Tellus75/spool_manager_U1/releases)
+Téléchargez `SpoolManager-1.0.1-Setup.exe` depuis les [releases GitHub](https://github.com/Tellus75/spool_manager_U1/releases)
 et lancez-le. L'application s'installe dans votre profil Windows, sans droits
 administrateur, puis crée un raccourci dans le menu Démarrer.
 
 Au premier lancement, allez dans **Réglages** et cliquez sur **Installer le hook sur
-tous mes profils**, Snapmaker Orca étant fermé.
+tous mes profils**, Snapmaker Orca étant fermé. La langue de l'interface (français
+ou anglais) se choisit dans le même onglet.
 
 ### Depuis l'exécutable (sans installeur)
 

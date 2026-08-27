@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from .i18n import t
 from .models import STATE_ARCHIVED, STATE_OPEN, ParsedUsage, Spool
 
 # Poids de chaque indice. L'emplacement domine volontairement tous les autres.
@@ -98,42 +99,42 @@ def score_spool(usage: ParsedUsage, spool: Spool) -> Candidate | None:
 
     if usage_material and usage_material == spool_material:
         score += SCORE_MATERIAL
-        reasons.append(f"matière {spool.material}")
+        reasons.append(t("match.material", material=spool.material))
 
     if usage.slot is not None and spool.loaded_slot is not None:
         if spool.loaded_slot == usage.slot:
             score += SCORE_SLOT
-            reasons.append(f"chargée dans l'emplacement {usage.slot}")
+            reasons.append(t("match.slot", slot=usage.slot))
         else:
             score += SCORE_WRONG_SLOT
-            reasons.append(f"chargée dans un autre emplacement ({spool.loaded_slot})")
+            reasons.append(t("match.other_slot", slot=spool.loaded_slot))
 
     if usage.preset and spool.orca_preset:
         if _normalise(usage.preset) == _normalise(spool.orca_preset):
             score += SCORE_PRESET
-            reasons.append("profil Orca identique")
+            reasons.append(t("match.preset"))
 
     distance = color_distance(usage.color_hex, spool.color_hex)
     if distance is not None:
         if distance == 0:
             score += SCORE_COLOR_EXACT
-            reasons.append("couleur identique")
+            reasons.append(t("match.color_same"))
         elif distance <= COLOR_CLOSE_DISTANCE:
             score += SCORE_COLOR_CLOSE
-            reasons.append("couleur proche")
+            reasons.append(t("match.color_close"))
         elif distance >= COLOR_FAR_DISTANCE:
             score += SCORE_COLOR_FAR
-            reasons.append("couleur différente")
+            reasons.append(t("match.color_far"))
 
     if usage.vendor and _normalise(usage.vendor) == _normalise(spool.vendor):
         score += SCORE_VENDOR
-        reasons.append(f"marque {spool.vendor}")
+        reasons.append(t("match.vendor", vendor=spool.vendor))
 
     if spool.remaining_g >= usage.grams:
         score += SCORE_ENOUGH_STOCK
     else:
         score += SCORE_NOT_ENOUGH_STOCK
-        reasons.append("stock restant insuffisant")
+        reasons.append(t("match.low_stock"))
 
     if spool.state == STATE_OPEN:
         score += SCORE_ALREADY_OPEN
@@ -163,15 +164,15 @@ def match_usage(usage: ParsedUsage, spools: list[Spool], usage_index: int = 0) -
     match = Match(usage_index=usage_index, usage=usage, candidates=candidates)
 
     if usage.grams <= 0:
-        match.reason = "Aucune consommation sur ce filament"
+        match.reason = t("match.no_usage")
         match.automatic = True
         return match
 
     if not candidates:
         match.reason = (
-            f"Aucune bobine de {usage.material or 'cette matière'} en stock"
+            t("match.no_material", material=usage.material)
             if usage.material
-            else "Aucune bobine correspondante en stock"
+            else t("match.no_spool")
         )
         return match
 
@@ -184,18 +185,22 @@ def match_usage(usage: ParsedUsage, spools: list[Spool], usage_index: int = 0) -
 
     if margin is not None and margin < AUTO_MIN_MARGIN:
         match.reason = (
-            f"Choix ambigu entre {best.spool.display_name} et {runner_up.spool.display_name}"
+            t("match.ambiguous", best=best.spool.display_name, other=runner_up.spool.display_name)
         )
         return match
 
     if best.score < MIN_PLAUSIBLE_SCORE:
-        match.reason = f"Correspondance trop faible pour {best.spool.display_name}"
+        match.reason = t("match.weak", name=best.spool.display_name)
         return match
 
     if best.spool.remaining_g < usage.grams:
         match.reason = (
-            f"{best.spool.display_name} n'a que {best.spool.remaining_g:.0f} g "
-            f"pour {usage.grams:.0f} g demandés"
+            t(
+                "match.short",
+                name=best.spool.display_name,
+                remaining=best.spool.remaining_g,
+                needed=usage.grams,
+            )
         )
         return match
 

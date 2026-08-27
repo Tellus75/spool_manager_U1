@@ -57,12 +57,13 @@ the G-code says which slot was used.
 
 ### Windows installer (recommended)
 
-Download `SpoolManager-1.0.0-Setup.exe` from the [GitHub releases](https://github.com/Tellus75/spool_manager_U1/releases)
+Download `SpoolManager-1.0.1-Setup.exe` from the [GitHub releases](https://github.com/Tellus75/spool_manager_U1/releases)
 and run it. The app installs into your Windows user profile, with no administrator
 rights, and creates a Start menu shortcut.
 
 On first launch, go to **Settings** and click **Install the hook on all my profiles**,
-with Snapmaker Orca closed.
+with Snapmaker Orca closed. The interface language (French or English) is chosen in
+the same tab.
 
 ### From the executable (no installer)
 

@@ -14,6 +14,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QTimer, Signal
 
 from . import config, gcode_parser
+from .i18n import t
 from .models import ParsedJob
 
 POLL_INTERVAL_MS = 2000
@@ -90,7 +91,7 @@ class Watcher(QObject):
                 payload = json.loads(path.read_text(encoding="utf-8"))
                 job = ParsedJob.from_dict(payload)
             except (OSError, json.JSONDecodeError, TypeError) as error:
-                self.failed.emit(f"Fichier de tranchage illisible ({path.name}) : {error}")
+                self.failed.emit(t("watch.unreadable", name=path.name, error=error))
                 self._archive(path, prefix="illisible-")
                 continue
 
@@ -158,7 +159,7 @@ class Watcher(QObject):
             except gcode_parser.GcodeParseError:
                 continue
             except OSError as error:
-                self.failed.emit(f"Lecture impossible de {path.name} : {error}")
+                self.failed.emit(t("watch.read_fail", name=path.name, error=error))
                 continue
 
             self.job_detected.emit(job)

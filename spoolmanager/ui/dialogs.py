@@ -22,8 +22,9 @@ from PySide6.QtWidgets import (
 )
 
 from .. import orca
+from ..i18n import state_label as translated_state, t
 from ..inventory import Inventory
-from ..models import STATE_LABELS, STATE_NEW, Spool
+from ..models import STATE_NEW, Spool
 from . import theme
 from .widgets import ColorDot
 
@@ -51,7 +52,7 @@ class ColorField(QWidget):
         self._edit.setFixedWidth(92)
         self._edit.textChanged.connect(self._on_text_changed)
 
-        button = QPushButton("Choisir…")
+        button = QPushButton(t("choose"))
         button.clicked.connect(self._pick)
 
         layout.addWidget(self._dot)
@@ -64,7 +65,7 @@ class ColorField(QWidget):
             self._dot.set_color(text)
 
     def _pick(self) -> None:
-        chosen = QColorDialog.getColor(QColor(self.value()), self, "Couleur du filament")
+        chosen = QColorDialog.getColor(QColor(self.value()), self, t("spool.color_dialog"))
         if chosen.isValid():
             self.set_value(chosen.name().upper())
 
@@ -86,14 +87,14 @@ class SpoolDialog(QDialog):
         super().__init__(parent)
         self.inventory = inventory
         self.spool = spool
-        self.setWindowTitle("Modifier la bobine" if spool else "Nouvelle bobine")
+        self.setWindowTitle(t("spool.edit_title") if spool else t("spool.new_title"))
         self.setMinimumWidth(520)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(20, 18, 20, 18)
         root.setSpacing(14)
 
-        title = QLabel("Modifier la bobine" if spool else "Ajouter une bobine à l'étagère")
+        title = QLabel(t("spool.edit_heading") if spool else t("spool.new_heading"))
         title.setProperty("role", "title")
         root.addWidget(title)
 
@@ -105,36 +106,36 @@ class SpoolDialog(QDialog):
         form.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
         self.vendor = QLineEdit()
-        self.vendor.setPlaceholderText("Snapmaker, Prusament, Sunlu…")
-        form.addRow("Marque", self.vendor)
+        self.vendor.setPlaceholderText(t("spool.vendor_ph"))
+        form.addRow(t("spool.vendor"), self.vendor)
 
         self.material = QComboBox()
         self.material.setEditable(True)
         self.material.addItems(COMMON_MATERIALS)
-        form.addRow("Matière", self.material)
+        form.addRow(t("spool.material"), self.material)
 
         self.name = QLineEdit()
-        self.name.setPlaceholderText("PLA Matte, PETG HF…")
-        form.addRow("Gamme", self.name)
+        self.name.setPlaceholderText(t("spool.range_ph"))
+        form.addRow(t("spool.range"), self.name)
 
         self.color = ColorField()
-        form.addRow("Couleur", self.color)
+        form.addRow(t("spool.colour"), self.color)
 
         self.color_name = QLineEdit()
-        self.color_name.setPlaceholderText("Orange lave, Noir mat…")
-        form.addRow("Nom de la couleur", self.color_name)
+        self.color_name.setPlaceholderText(t("spool.colour_ph"))
+        form.addRow(t("spool.colour_name"), self.color_name)
 
         self.preset = QComboBox()
         self.preset.setEditable(True)
         self.preset.setInsertPolicy(QComboBox.NoInsert)
         self._fill_presets()
-        form.addRow("Profil Orca associé", self.preset)
+        form.addRow(t("spool.preset"), self.preset)
 
         self.density = self._spin(0.5, 3.0, 2, " g/cm³", 1.24)
-        form.addRow("Densité", self.density)
+        form.addRow(t("spool.density"), self.density)
 
         self.diameter = self._spin(1.0, 4.0, 2, " mm", 1.75)
-        form.addRow("Diamètre", self.diameter)
+        form.addRow(t("spool.diameter"), self.diameter)
 
         root.addLayout(form)
         root.addWidget(self._separator())
@@ -144,39 +145,34 @@ class SpoolDialog(QDialog):
         stock.setLabelAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
         self.initial_net = self._spin(0, 20000, 0, " g", 1000)
-        stock.addRow("Poids net à l'achat", self.initial_net)
+        stock.addRow(t("spool.net"), self.initial_net)
 
         self.remaining = self._spin(0, 20000, 0, " g", 1000)
-        self.remaining.setToolTip(
-            "Ce qu'il reste aujourd'hui. Laisser égal au poids d'achat pour une bobine neuve."
-        )
+        self.remaining.setToolTip(t("spool.remaining_tip_new"))
         if spool:
             self.remaining.setEnabled(False)
-            self.remaining.setToolTip(
-                "Le restant se modifie par une pesée ou une correction, "
-                "afin de conserver l'historique."
-            )
-        stock.addRow("Restant actuel", self.remaining)
+            self.remaining.setToolTip(t("spool.remaining_tip_edit"))
+        stock.addRow(t("spool.remaining"), self.remaining)
 
         self.tare = self._spin(0, 2000, 0, " g", DEFAULT_TARE_G)
-        self.tare.setToolTip("Poids de la bobine vide, utilisé lors des pesées de recalage.")
-        stock.addRow("Tare (bobine vide)", self.tare)
+        self.tare.setToolTip(t("spool.tare_tip"))
+        stock.addRow(t("spool.tare"), self.tare)
 
         self.price = self._spin(0, 999, 2, " EUR", 0)
-        stock.addRow("Prix payé", self.price)
+        stock.addRow(t("spool.price"), self.price)
 
         self.shelf = QLineEdit()
-        self.shelf.setPlaceholderText("A3, étagère haut…")
-        stock.addRow("Case sur l'étagère", self.shelf)
+        self.shelf.setPlaceholderText(t("spool.bin_ph"))
+        stock.addRow(t("spool.bin"), self.shelf)
 
         self.label = QLineEdit()
-        self.label.setPlaceholderText("Facultatif, remplace le nom affiché")
-        stock.addRow("Étiquette", self.label)
+        self.label.setPlaceholderText(t("spool.label_ph"))
+        stock.addRow(t("spool.label"), self.label)
 
         self.purchase = QDateEdit(QDate.currentDate())
         self.purchase.setCalendarPopup(True)
-        self.purchase.setDisplayFormat("dd/MM/yyyy")
-        stock.addRow("Date d'achat", self.purchase)
+        self.purchase.setDisplayFormat(t("date.display"))
+        stock.addRow(t("spool.purchase"), self.purchase)
 
         root.addLayout(stock)
 
@@ -186,9 +182,9 @@ class SpoolDialog(QDialog):
         root.addWidget(self._hint)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Save).setText("Enregistrer")
+        buttons.button(QDialogButtonBox.Save).setText(t("save"))
         buttons.button(QDialogButtonBox.Save).setProperty("variant", "primary")
-        buttons.button(QDialogButtonBox.Cancel).setText("Annuler")
+        buttons.button(QDialogButtonBox.Cancel).setText(t("cancel"))
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         root.addWidget(buttons)
@@ -223,9 +219,9 @@ class SpoolDialog(QDialog):
         layout = QHBoxLayout(row)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        hint = QLabel("Préremplir depuis un profil filament de Snapmaker Orca")
+        hint = QLabel(t("spool.prefill"))
         hint.setProperty("role", "subtitle")
-        button = QPushButton("Importer un profil…")
+        button = QPushButton(t("spool.import"))
         button.clicked.connect(self._prefill_from_preset)
 
         layout.addWidget(hint, 1)
@@ -267,7 +263,7 @@ class SpoolDialog(QDialog):
     def _update_hint(self) -> None:
         gross = self.remaining.value() + self.tare.value()
         self._hint.setText(
-            f"Sur une balance, cette bobine devrait afficher environ {gross:.0f} g."
+            t("spool.hint_gross", g=gross)
         )
 
     # ------------------------------------------------------------------ données
@@ -337,7 +333,7 @@ class PresetChooser(QDialog):
 
     def __init__(self, presets, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Profils filament de Snapmaker Orca")
+        self.setWindowTitle(t("preset.title"))
         self.setMinimumSize(560, 480)
         self.selected = None
         self._presets = presets
@@ -349,7 +345,7 @@ class PresetChooser(QDialog):
         layout.setSpacing(10)
 
         self._search = QLineEdit()
-        self._search.setPlaceholderText("Rechercher : PLA, Snapmaker, U1…")
+        self._search.setPlaceholderText(t("preset.search"))
         self._search.textChanged.connect(self._filter)
         layout.addWidget(self._search)
 
@@ -361,9 +357,9 @@ class PresetChooser(QDialog):
         self._populate(presets)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Ok).setText("Utiliser ce profil")
+        buttons.button(QDialogButtonBox.Ok).setText(t("preset.use"))
         buttons.button(QDialogButtonBox.Ok).setProperty("variant", "primary")
-        buttons.button(QDialogButtonBox.Cancel).setText("Annuler")
+        buttons.button(QDialogButtonBox.Cancel).setText(t("cancel"))
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -411,21 +407,18 @@ class WeighDialog(QDialog):
     def __init__(self, spool: Spool, parent=None):
         super().__init__(parent)
         self.spool = spool
-        self.setWindowTitle("Peser la bobine")
+        self.setWindowTitle(t("weigh.title"))
         self.setMinimumWidth(430)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 18, 20, 18)
         layout.setSpacing(12)
 
-        title = QLabel(f"Peser « {spool.display_name} »")
+        title = QLabel(t("weigh.heading", name=spool.display_name))
         title.setProperty("role", "title")
         layout.addWidget(title)
 
-        explanation = QLabel(
-            "Posez la bobine entière sur la balance et saisissez le poids affiché. "
-            "La tare enregistrée sera retirée pour recalculer le filament restant."
-        )
+        explanation = QLabel(t("weigh.explain"))
         explanation.setProperty("role", "subtitle")
         explanation.setWordWrap(True)
         layout.addWidget(explanation)
@@ -439,11 +432,11 @@ class WeighDialog(QDialog):
         self.gross.setSuffix(" g")
         self.gross.setValue(spool.gross_g)
         self.gross.valueChanged.connect(self._update_preview)
-        form.addRow("Poids total mesuré", self.gross)
+        form.addRow(t("weigh.gross"), self.gross)
 
         tare = QLabel(f"{spool.empty_spool_g:.0f} g")
         tare.setProperty("role", "muted")
-        form.addRow("Tare enregistrée", tare)
+        form.addRow(t("weigh.tare"), tare)
 
         layout.addLayout(form)
 
@@ -452,9 +445,9 @@ class WeighDialog(QDialog):
         layout.addWidget(self._preview)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Ok).setText("Appliquer la pesée")
+        buttons.button(QDialogButtonBox.Ok).setText(t("weigh.apply"))
         buttons.button(QDialogButtonBox.Ok).setProperty("variant", "primary")
-        buttons.button(QDialogButtonBox.Cancel).setText("Annuler")
+        buttons.button(QDialogButtonBox.Cancel).setText(t("cancel"))
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -465,15 +458,20 @@ class WeighDialog(QDialog):
         net = max(0.0, self.gross.value() - self.spool.empty_spool_g)
         delta = net - self.spool.remaining_g
         if abs(delta) < 0.5:
-            self._preview.setText("Le comptage est conforme à la pesée, rien ne changera.")
+            self._preview.setText(t("weigh.match"))
             self._preview.setStyleSheet(f"color: {theme.MUTED};")
             return
 
-        direction = "de moins" if delta < 0 else "de plus"
+        direction = t("weigh.less") if delta < 0 else t("weigh.more")
         color = theme.WARNING if abs(delta) > 50 else theme.MUTED
         self._preview.setText(
-            f"Restant recalculé : {net:.0f} g, soit {abs(delta):.0f} g {direction} "
-            f"que les {self.spool.remaining_g:.0f} g comptés."
+            t(
+                "weigh.preview",
+                net=net,
+                delta=abs(delta),
+                direction=direction,
+                counted=self.spool.remaining_g,
+            )
         )
         self._preview.setStyleSheet(f"color: {color};")
 
@@ -486,14 +484,14 @@ class AdjustDialog(QDialog):
 
     def __init__(self, spool: Spool, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Corriger le stock")
+        self.setWindowTitle(t("adjust.title"))
         self.setMinimumWidth(400)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 18, 20, 18)
         layout.setSpacing(12)
 
-        title = QLabel(f"Corriger « {spool.display_name} »")
+        title = QLabel(t("adjust.heading", name=spool.display_name))
         title.setProperty("role", "title")
         layout.addWidget(title)
 
@@ -504,27 +502,27 @@ class AdjustDialog(QDialog):
         self.delta.setRange(-20000, 20000)
         self.delta.setDecimals(1)
         self.delta.setSuffix(" g")
-        self.delta.setToolTip("Négatif pour retirer du filament, positif pour en ajouter.")
-        form.addRow("Variation", self.delta)
+        self.delta.setToolTip(t("adjust.delta_tip"))
+        form.addRow(t("adjust.delta"), self.delta)
 
         self.note = QLineEdit()
-        self.note.setPlaceholderText("Impression ratée, purge, chute réutilisée…")
-        form.addRow("Motif", self.note)
+        self.note.setPlaceholderText(t("adjust.note_ph"))
+        form.addRow(t("adjust.note"), self.note)
 
         layout.addLayout(form)
 
-        current = QLabel(f"Restant actuel : {spool.remaining_g:.0f} g")
+        current = QLabel(t("adjust.current", g=spool.remaining_g))
         current.setProperty("role", "subtitle")
         layout.addWidget(current)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Ok).setText("Appliquer")
+        buttons.button(QDialogButtonBox.Ok).setText(t("apply"))
         buttons.button(QDialogButtonBox.Ok).setProperty("variant", "primary")
-        buttons.button(QDialogButtonBox.Cancel).setText("Annuler")
+        buttons.button(QDialogButtonBox.Cancel).setText(t("cancel"))
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
 
 def state_label(state: str) -> str:
-    return STATE_LABELS.get(state, state)
+    return translated_state(state)

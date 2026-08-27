@@ -14,7 +14,7 @@ from spoolmanager import config, db  # noqa: E402
 from spoolmanager.inventory import Inventory  # noqa: E402
 from spoolmanager.models import JOB_APPLIED, JOB_REVERTED, JOB_REVIEW  # noqa: E402
 from spoolmanager.ui.history_tab import HistoryTab  # noqa: E402
-from spoolmanager.ui.main_window import MainWindow  # noqa: E402
+from spoolmanager.ui.main_window import MainWindow, TAB_DASHBOARD, TAB_SETTINGS  # noqa: E402
 from spoolmanager.ui.settings_tab import SettingsTab  # noqa: E402
 
 
@@ -200,6 +200,30 @@ class TestSettings:
 
         assert settings._command.text().startswith('"')
         assert settings._presets.count() >= 1
+
+
+class TestLanguage:
+    def test_english_is_offered_in_settings(self, window):
+        combo = window.settings._language
+        codes = [combo.itemData(i) for i in range(combo.count())]
+        assert codes == ["fr", "en"]
+        assert combo.currentData() == "fr"
+
+    def test_switching_to_english_retranslates_the_ui(self, window):
+        combo = window.settings._language
+        combo.setCurrentIndex(combo.findData("en"))
+
+        assert db.get_setting(window.conn, "language") == "en"
+        assert window.tabs.tabText(TAB_DASHBOARD) == "Dashboard"
+        assert window.tabs.tabText(TAB_SETTINGS) == "Settings"
+        assert window.settings._language.currentData() == "en"
+
+    def test_language_choice_is_persisted(self, window):
+        window.settings._language.setCurrentIndex(
+            window.settings._language.findData("en")
+        )
+        window.settings.refresh()
+        assert window.settings._language.currentData() == "en"
 
 
 class TestNotifications:

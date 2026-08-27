@@ -14,7 +14,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..models import STATE_LABELS, Spool
+from ..i18n import state_label, t
+from ..models import Spool
 from . import theme
 
 SPOOL_MIME = "application/x-spoolmanager-spool-id"
@@ -255,8 +256,8 @@ class SpoolCard(QFrame):
         if spool.color_name:
             details.append(spool.color_name)
         if spool.shelf_location:
-            details.append(f"case {spool.shelf_location}")
-        details.append(STATE_LABELS.get(spool.state, spool.state))
+            details.append(f"{t('card.bin', name=spool.shelf_location)}")
+        details.append(state_label(spool.state))
 
         # La carte a une largeur fixe : les textes trop longs sont coupés proprement
         # plutôt que de déborder sur la pastille ou les étiquettes.
@@ -268,20 +269,26 @@ class SpoolCard(QFrame):
         self._gauge.set_value(spool.ratio, color)
         self._remaining.setText(f"{spool.remaining_g:.0f} g")
         self._remaining.setStyleSheet(f"font-size: 15px; font-weight: 700; color: {color};")
-        self._percent.setText(f"{spool.ratio * 100:.0f} % de {spool.initial_net_g:.0f} g")
+        self._percent.setText(
+            t("spools.fill_of", pct=spool.ratio * 100, net=spool.initial_net_g)
+        )
 
         self._material.setText(spool.material or "?")
         if spool.loaded_slot:
-            self._slot_chip.setText(f"Empl. {spool.loaded_slot}")
+            self._slot_chip.setText(t("card.slot", slot=spool.loaded_slot))
             self._slot_chip.show()
         else:
             self._slot_chip.hide()
 
         self.setToolTip(
-            f"{spool.display_name}\n"
-            f"{spool.remaining_g:.0f} g restants sur {spool.initial_net_g:.0f} g\n"
-            f"Poids attendu sur la balance : {spool.gross_g:.0f} g\n"
-            f"Valeur restante : {spool.value_eur:.2f} EUR"
+            t(
+                "card.tip",
+                name=spool.display_name,
+                remaining=spool.remaining_g,
+                net=spool.initial_net_g,
+                gross=spool.gross_g,
+                value=spool.value_eur,
+            )
         )
 
     @staticmethod

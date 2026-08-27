@@ -20,23 +20,24 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..i18n import plural, reason_label, state_label, t
 from ..inventory import Inventory
-from ..models import REASON_LABELS, STATE_ARCHIVED, STATE_LABELS, format_timestamp
+from ..models import STATE_ARCHIVED, format_timestamp
 from . import theme
 from .actions import SpoolActions, spool_sort_key
-from .dashboard import ALL_MATERIALS
+from .dashboard import all_materials_label
 
-COLUMNS = [
-    ("", 34),
-    ("Bobine", 210),
-    ("Matière", 82),
-    ("Couleur", 118),
-    ("Restant", 96),
-    ("Remplissage", 132),
-    ("Emplacement", 104),
-    ("Case", 70),
-    ("État", 88),
-    ("Valeur", 90),
+COLUMN_KEYS = [
+    ("spools.col.color", 34),
+    ("spools.col.spool", 210),
+    ("spools.col.material", 82),
+    ("spools.col.colour", 118),
+    ("spools.col.remaining", 96),
+    ("spools.col.fill", 132),
+    ("spools.col.slot", 104),
+    ("spools.col.bin", 70),
+    ("spools.col.state", 88),
+    ("spools.col.value", 90),
 ]
 
 
@@ -83,7 +84,7 @@ class SpoolsTab(QWidget):
         titles = QVBoxLayout()
         titles.setSpacing(1)
 
-        title = QLabel("Bobines")
+        title = QLabel(t("spools.title"))
         title.setProperty("role", "title")
         self._count = QLabel()
         self._count.setProperty("role", "subtitle")
@@ -92,10 +93,10 @@ class SpoolsTab(QWidget):
         layout.addLayout(titles, 1)
 
         for text, handler, variant in (
-            ("Peser…", self._weigh_selected, None),
-            ("Corriger…", self._adjust_selected, None),
-            ("Modifier…", self._edit_selected, None),
-            ("Ajouter une bobine", self.actions.create, "primary"),
+            (t("spools.weigh"), self._weigh_selected, None),
+            (t("spools.adjust"), self._adjust_selected, None),
+            (t("spools.edit"), self._edit_selected, None),
+            (t("spools.add"), self.actions.create, "primary"),
         ):
             button = QPushButton(text)
             if variant:
@@ -109,7 +110,7 @@ class SpoolsTab(QWidget):
         layout.setSpacing(9)
 
         self._search = QLineEdit()
-        self._search.setPlaceholderText("Rechercher…")
+        self._search.setPlaceholderText(t("spools.search"))
         self._search.setClearButtonEnabled(True)
         self._search.textChanged.connect(self.refresh)
         layout.addWidget(self._search, 1)
@@ -119,14 +120,14 @@ class SpoolsTab(QWidget):
         self._material.currentTextChanged.connect(self.refresh)
         layout.addWidget(self._material)
 
-        self._show_archived = QCheckBox("Afficher les archivées")
+        self._show_archived = QCheckBox(t("spools.archived"))
         self._show_archived.toggled.connect(self.refresh)
         layout.addWidget(self._show_archived)
         return layout
 
     def _build_table(self) -> QTableWidget:
-        table = QTableWidget(0, len(COLUMNS))
-        table.setHorizontalHeaderLabels([name for name, _ in COLUMNS])
+        table = QTableWidget(0, len(COLUMN_KEYS))
+        table.setHorizontalHeaderLabels([t(name) for name, _ in COLUMN_KEYS])
         table.verticalHeader().setVisible(False)
         table.setSelectionBehavior(QAbstractItemView.SelectRows)
         table.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -139,7 +140,7 @@ class SpoolsTab(QWidget):
         table.itemSelectionChanged.connect(self._refresh_movements)
 
         header = table.horizontalHeader()
-        for index, (_, width) in enumerate(COLUMNS):
+        for index, (_, width) in enumerate(COLUMN_KEYS):
             table.setColumnWidth(index, width)
         header.setStretchLastSection(True)
         header.setSectionResizeMode(1, QHeaderView.Stretch)
@@ -153,12 +154,14 @@ class SpoolsTab(QWidget):
         layout.setContentsMargins(0, 6, 0, 0)
         layout.setSpacing(7)
 
-        self._movements_title = QLabel("Mouvements")
+        self._movements_title = QLabel(t("spools.movements"))
         self._movements_title.setProperty("role", "section")
         layout.addWidget(self._movements_title)
 
         table = QTableWidget(0, 4)
-        table.setHorizontalHeaderLabels(["Date", "Type", "Variation", "Détail"])
+        table.setHorizontalHeaderLabels(
+            [t("spools.mov.date"), t("spools.mov.type"), t("spools.mov.delta"), t("spools.mov.detail")]
+        )
         table.verticalHeader().setVisible(False)
         table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         table.setSelectionMode(QAbstractItemView.NoSelection)
@@ -218,7 +221,7 @@ class SpoolsTab(QWidget):
                 return False
 
         material = self._material.currentText()
-        return not (material and material != ALL_MATERIALS and spool.material != material)
+        return not (material and material != all_materials_label() and spool.material != material)
 
     def refresh(self) -> None:
         spools = self.inventory.list_spools(include_archived=self._show_archived.isChecked())
@@ -227,7 +230,7 @@ class SpoolsTab(QWidget):
         materials = sorted({s.material for s in spools if s.material})
         self._material.blockSignals(True)
         self._material.clear()
-        self._material.addItem(ALL_MATERIALS)
+        self._material.addItem(all_materials_label())
         self._material.addItems(materials)
         if current in materials:
             self._material.setCurrentText(current)
@@ -260,7 +263,7 @@ class SpoolsTab(QWidget):
             remaining.setForeground(
                 QColor(theme.level_color(spool.ratio, spool.remaining_g, threshold))
             )
-            remaining.setToolTip(f"Poids attendu sur la balance : {spool.gross_g:.0f} g")
+            remaining.setToolTip(t("spools.gross_tip", g=spool.gross_g))
             self._table.setItem(row, 4, remaining)
 
             self._table.setItem(
@@ -268,7 +271,7 @@ class SpoolsTab(QWidget):
                 5,
                 NumericItem(
                     spool.ratio,
-                    f"{spool.ratio * 100:.0f} % de {spool.initial_net_g:.0f} g",
+                    t("spools.fill_of", pct=spool.ratio * 100, net=spool.initial_net_g),
                 ),
             )
             self._table.setItem(
@@ -282,7 +285,7 @@ class SpoolsTab(QWidget):
 
             self._table.setItem(row, 7, QTableWidgetItem(spool.shelf_location))
             self._table.setItem(
-                row, 8, QTableWidgetItem(STATE_LABELS.get(spool.state, spool.state))
+                row, 8, QTableWidgetItem(state_label(spool.state))
             )
             self._table.setItem(
                 row, 9, NumericItem(spool.value_eur, f"{spool.value_eur:.2f} EUR")
@@ -297,21 +300,25 @@ class SpoolsTab(QWidget):
 
         total = sum(s.remaining_g for s in visible)
         self._count.setText(
-            f"{len(visible)} bobine{'s' if len(visible) > 1 else ''} affichée"
-            f"{'s' if len(visible) > 1 else ''} · {total / 1000:.2f} kg au total"
+            t(
+                "spools.count",
+                count=len(visible),
+                plural=plural(len(visible)),
+                kg=total / 1000,
+            )
         )
         self._refresh_movements()
 
     def _refresh_movements(self) -> None:
         spool_id = self._selected_spool_id()
         if spool_id is None:
-            self._movements_title.setText("Mouvements")
+            self._movements_title.setText(t("spools.movements"))
             self._movements.setRowCount(0)
             return
 
         spool = self.inventory.get_spool(spool_id)
         self._movements_title.setText(
-            f"Mouvements de « {spool.display_name} »" if spool else "Mouvements"
+            t("spools.movements_of", name=spool.display_name) if spool else t("spools.movements")
         )
 
         rows = self.inventory.movements(spool_id)
@@ -321,7 +328,7 @@ class SpoolsTab(QWidget):
                 index, 0, QTableWidgetItem(format_timestamp(row["created_at"]))
             )
             self._movements.setItem(
-                index, 1, QTableWidgetItem(REASON_LABELS.get(row["reason"], row["reason"]))
+                index, 1, QTableWidgetItem(reason_label(row["reason"]))
             )
 
             delta = float(row["delta_g"])

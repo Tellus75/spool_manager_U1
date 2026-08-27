@@ -20,23 +20,23 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..i18n import job_status_label, plural, t
 from ..inventory import Inventory
 from ..models import (
     JOB_APPLIED,
     JOB_REVERTED,
     JOB_REVIEW,
-    JOB_STATUS_LABELS,
     format_timestamp,
 )
 from . import theme
 from .review_dialog import ReviewDialog
 
-FILTERS = {
-    "Tous les tranchages": None,
-    "À vérifier": (JOB_REVIEW,),
-    "Décomptés": (JOB_APPLIED,),
-    "Annulés": (JOB_REVERTED,),
-}
+FILTERS = [
+    ("history.filter.all", None),
+    ("history.filter.review", (JOB_REVIEW,)),
+    ("history.filter.applied", (JOB_APPLIED,)),
+    ("history.filter.reverted", (JOB_REVERTED,)),
+]
 
 STATUS_COLORS = {
     JOB_APPLIED: theme.SUCCESS,
@@ -72,7 +72,7 @@ class HistoryTab(QWidget):
         titles = QVBoxLayout()
         titles.setSpacing(1)
 
-        title = QLabel("Historique des tranchages")
+        title = QLabel(t("history.title"))
         title.setProperty("role", "title")
         self._subtitle = QLabel()
         self._subtitle.setProperty("role", "subtitle")
@@ -81,23 +81,32 @@ class HistoryTab(QWidget):
         layout.addLayout(titles, 1)
 
         self._filter = QComboBox()
-        self._filter.addItems(FILTERS.keys())
-        self._filter.currentTextChanged.connect(self.refresh)
+        for key, statuses in FILTERS:
+            self._filter.addItem(t(key), statuses)
+        self._filter.currentIndexChanged.connect(lambda _index: self.refresh())
         layout.addWidget(self._filter, 0, Qt.AlignTop)
 
-        self._review_button = QPushButton("Vérifier…")
+        self._review_button = QPushButton(t("history.verify"))
         self._review_button.setProperty("variant", "primary")
         self._review_button.clicked.connect(self._review_selected)
         layout.addWidget(self._review_button, 0, Qt.AlignTop)
 
-        self._undo_button = QPushButton("Annuler le décompte")
+        self._undo_button = QPushButton(t("history.undo"))
         self._undo_button.clicked.connect(self._undo_selected)
         layout.addWidget(self._undo_button, 0, Qt.AlignTop)
         return layout
 
     def _build_table(self) -> QTableWidget:
         table = QTableWidget(0, 5)
-        table.setHorizontalHeaderLabels(["Date", "Projet", "Filament", "Coût", "Statut"])
+        table.setHorizontalHeaderLabels(
+            [
+                t("history.col.date"),
+                t("history.col.project"),
+                t("history.col.filament"),
+                t("history.col.cost"),
+                t("history.col.status"),
+            ]
+        )
         table.verticalHeader().setVisible(False)
         table.setSelectionBehavior(QAbstractItemView.SelectRows)
         table.setSelectionMode(QAbstractItemView.SingleSelection)
@@ -119,7 +128,7 @@ class HistoryTab(QWidget):
         layout.setContentsMargins(14, 0, 0, 0)
         layout.setSpacing(8)
 
-        self._detail_title = QLabel("Détail")
+        self._detail_title = QLabel(t("history.detail"))
         self._detail_title.setProperty("role", "section")
         layout.addWidget(self._detail_title)
 
@@ -129,7 +138,9 @@ class HistoryTab(QWidget):
         layout.addWidget(self._detail_summary)
 
         tree = QTreeWidget()
-        tree.setHeaderLabels(["Filament du tranchage", "Bobine décomptée", "Quantité"])
+        tree.setHeaderLabels(
+            [t("history.tree.filament"), t("history.tree.spool"), t("history.tree.qty")]
+        )
         tree.setRootIsDecorated(False)
         tree.setColumnWidth(0, 170)
         tree.setColumnWidth(1, 190)
@@ -148,7 +159,7 @@ class HistoryTab(QWidget):
         return item.data(Qt.UserRole) if item else None
 
     def refresh(self) -> None:
-        statuses = FILTERS.get(self._filter.currentText())
+        statuses = self._filter.currentData()
         jobs = self.inventory.list_jobs(statuses)
         previous = self._selected_job_id()
 
@@ -157,7 +168,7 @@ class HistoryTab(QWidget):
             stamp = format_timestamp(job["sliced_at"] or job["created_at"])
             self._table.setItem(row, 0, QTableWidgetItem(stamp))
 
-            name = QTableWidgetItem(job["project_name"] or "Sans nom")
+            name = QTableWidgetItem(job["project_name"] or t("history.unnamed"))
             name.setData(Qt.UserRole, job["id"])
             self._table.setItem(row, 1, name)
 
@@ -165,7 +176,7 @@ class HistoryTab(QWidget):
             cost = f"{job['total_cost']:.2f} EUR" if job["total_cost"] else ""
             self._table.setItem(row, 3, QTableWidgetItem(cost))
 
-            status = QTableWidgetItem(JOB_STATUS_LABELS.get(job["status"], job["status"]))
+            status = QTableWidgetItem(job_status_label(job["status"]))
             status.setForeground(QColor(STATUS_COLORS.get(job["status"], theme.TEXT)))
             self._table.setItem(row, 4, status)
 
@@ -174,10 +185,14 @@ class HistoryTab(QWidget):
 
         pending = self.inventory.pending_review_count()
         printed = self.inventory.stats()["total_printed_g"]
-        detail = f"{len(jobs)} tranchage{'s' if len(jobs) > 1 else ''} · "
-        detail += f"{printed / 1000:.2f} kg décomptés au total"
+        detail = t(
+            "history.subtitle",
+            count=len(jobs),
+            plural=plural(len(jobs)),
+            kg=printed / 1000,
+        )
         if pending:
-            detail += f" · {pending} en attente de vérification"
+            detail += t("history.pending", count=pending)
         self._subtitle.setText(detail)
 
         if self._table.currentRow() < 0 and jobs:
@@ -189,8 +204,8 @@ class HistoryTab(QWidget):
         self._detail_tree.clear()
 
         if job_id is None:
-            self._detail_title.setText("Détail")
-            self._detail_summary.setText("Sélectionnez un tranchage.")
+            self._detail_title.setText(t("history.detail"))
+            self._detail_summary.setText(t("history.select"))
             self._review_button.setEnabled(False)
             self._undo_button.setEnabled(False)
             return
@@ -199,12 +214,13 @@ class HistoryTab(QWidget):
         if job is None:
             return
 
-        self._detail_title.setText(job["project_name"] or "Sans nom")
+        self._detail_title.setText(job["project_name"] or t("history.unnamed"))
+        source = t("history.source.hook") if job["source"] == "hook" else t("history.source.watch")
         parts = [
             f"{job['total_g']:.1f} g",
             job["printer"] or "",
             job["print_time"] or "",
-            f"détecté par {'le hook Orca' if job['source'] == 'hook' else 'la surveillance de dossier'}",
+            t("history.detected", source=source),
         ]
         summary = " · ".join(p for p in parts if p)
         if job["note"]:
@@ -216,7 +232,7 @@ class HistoryTab(QWidget):
                 self.inventory.get_spool(usage["spool_id"]) if usage["spool_id"] else None
             )
             slot = usage["extruder_index"]
-            source = f"Emplacement {slot}" if slot is not None else "Filament"
+            source = t("history.slot", slot=slot) if slot is not None else t("history.filament")
             if usage["material"]:
                 source += f" · {usage['material']}"
 
@@ -225,7 +241,7 @@ class HistoryTab(QWidget):
             elif usage["grams"] <= 0:
                 target = "—"
             else:
-                target = "Non attribué"
+                target = t("history.unassigned")
 
             item = QTreeWidgetItem([source, target, f"{usage['grams']:.2f} g"])
             if usage["color_hex"]:
@@ -257,7 +273,7 @@ class HistoryTab(QWidget):
         if result or dialog.discarded:
             self.changed.emit()
             self.message.emit(
-                "Tranchage ignoré" if dialog.discarded else "Décompte appliqué"
+                t("history.ignored") if dialog.discarded else t("history.applied")
             )
         self.refresh()
 
@@ -270,13 +286,16 @@ class HistoryTab(QWidget):
         self.inventory.revert_job(job_id)
         self.changed.emit()
         self.message.emit(
-            f"Décompte de « {job['project_name']} » annulé, le filament a été restitué"
+            t("history.undone", name=job["project_name"])
         )
         self.refresh()
 
     def show_pending(self) -> None:
         """Bascule sur la file d'attente et ouvre le premier tranchage à vérifier."""
-        self._filter.setCurrentText("À vérifier")
+        for index, (_key, statuses) in enumerate(FILTERS):
+            if statuses == (JOB_REVIEW,):
+                self._filter.setCurrentIndex(index)
+                break
         self.refresh()
         if self._table.rowCount():
             self._table.selectRow(0)

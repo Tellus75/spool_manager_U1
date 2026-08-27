@@ -6,6 +6,7 @@ from PySide6.QtCore import QObject, QPoint, Signal
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMenu, QMessageBox
 
+from ..i18n import t
 from ..inventory import Inventory
 from ..models import Spool
 from .dialogs import AdjustDialog, SpoolDialog, WeighDialog
@@ -26,7 +27,7 @@ class SpoolActions(QObject):
         dialog = SpoolDialog(self.inventory, parent=self._parent_widget)
         if dialog.exec():
             self.changed.emit()
-            self.message.emit("Bobine ajoutée à l'étagère")
+            self.message.emit(t("action.added"))
 
     def edit(self, spool_id: int) -> None:
         spool = self.inventory.get_spool(spool_id)
@@ -35,7 +36,7 @@ class SpoolActions(QObject):
         dialog = SpoolDialog(self.inventory, spool, parent=self._parent_widget)
         if dialog.exec():
             self.changed.emit()
-            self.message.emit(f"« {spool.display_name} » mise à jour")
+            self.message.emit(t("action.updated", name=spool.display_name))
 
     def weigh(self, spool_id: int) -> None:
         spool = self.inventory.get_spool(spool_id)
@@ -48,11 +49,9 @@ class SpoolActions(QObject):
         delta = self.inventory.weigh(spool_id, dialog.gross_value())
         self.changed.emit()
         if delta == 0:
-            self.message.emit("Pesée conforme au comptage, aucun changement")
+            self.message.emit(t("action.weigh_ok"))
         else:
-            self.message.emit(
-                f"« {spool.display_name} » recalée de {delta:+.0f} g d'après la pesée"
-            )
+            self.message.emit(t("action.weigh_done", name=spool.display_name, delta=delta))
 
     def adjust(self, spool_id: int) -> None:
         spool = self.inventory.get_spool(spool_id)
@@ -64,7 +63,7 @@ class SpoolActions(QObject):
 
         self.inventory.adjust(spool_id, dialog.delta.value(), dialog.note.text().strip())
         self.changed.emit()
-        self.message.emit(f"Correction de {dialog.delta.value():+.0f} g appliquée")
+        self.message.emit(t("action.adjusted", delta=dialog.delta.value()))
 
     def load_into_slot(self, spool_id: int, slot: int) -> None:
         spool = self.inventory.get_spool(spool_id)
@@ -72,12 +71,12 @@ class SpoolActions(QObject):
             return
         self.inventory.load_into_slot(spool_id, slot)
         self.changed.emit()
-        self.message.emit(f"« {spool.display_name} » chargée dans l'emplacement {slot}")
+        self.message.emit(t("action.loaded", name=spool.display_name, slot=slot))
 
     def unload(self, spool_id: int) -> None:
         self.inventory.unload_spool(spool_id)
         self.changed.emit()
-        self.message.emit("Bobine retirée de l'imprimante")
+        self.message.emit(t("action.unloaded"))
 
     def archive(self, spool_id: int) -> None:
         spool = self.inventory.get_spool(spool_id)
@@ -85,15 +84,13 @@ class SpoolActions(QObject):
             return
         confirm = QMessageBox.question(
             self._parent_widget,
-            "Archiver la bobine",
-            f"Archiver « {spool.display_name} » ?\n\n"
-            "Elle disparaîtra de l'étagère et ne sera plus proposée lors des tranchages, "
-            "mais son historique de consommation sera conservé.",
+            t("action.archive_title"),
+            t("action.archive_body", name=spool.display_name),
         )
         if confirm == QMessageBox.Yes:
             self.inventory.archive_spool(spool_id)
             self.changed.emit()
-            self.message.emit(f"« {spool.display_name} » archivée")
+            self.message.emit(t("action.archived", name=spool.display_name))
 
     def delete(self, spool_id: int) -> None:
         spool = self.inventory.get_spool(spool_id)
@@ -101,17 +98,15 @@ class SpoolActions(QObject):
             return
         confirm = QMessageBox.warning(
             self._parent_widget,
-            "Supprimer définitivement",
-            f"Supprimer « {spool.display_name} » et tout son historique ?\n\n"
-            "Cette action est irréversible. Préférez l'archivage pour conserver "
-            "les statistiques de consommation.",
+            t("action.delete_title"),
+            t("action.delete_body", name=spool.display_name),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
         if confirm == QMessageBox.Yes:
             self.inventory.delete_spool(spool_id)
             self.changed.emit()
-            self.message.emit("Bobine supprimée")
+            self.message.emit(t("action.deleted"))
 
     def show_menu(self, spool_id: int, position: QPoint) -> None:
         spool = self.inventory.get_spool(spool_id)
@@ -119,26 +114,26 @@ class SpoolActions(QObject):
             return
 
         menu = QMenu(self._parent_widget)
-        self._add(menu, "Peser…", lambda: self.weigh(spool_id))
-        self._add(menu, "Corriger le stock…", lambda: self.adjust(spool_id))
+        self._add(menu, t("action.menu.weigh"), lambda: self.weigh(spool_id))
+        self._add(menu, t("action.menu.adjust"), lambda: self.adjust(spool_id))
         menu.addSeparator()
 
-        load_menu = menu.addMenu("Charger dans l'emplacement")
+        load_menu = menu.addMenu(t("action.menu.load"))
         for slot in range(1, self.inventory.slot_count() + 1):
             occupant = self.inventory.slots().get(slot)
-            suffix = f" (remplace {occupant.display_name})" if occupant else ""
-            action = QAction(f"Emplacement {slot}{suffix}", menu)
+            suffix = t("action.menu.replace", name=occupant.display_name) if occupant else ""
+            action = QAction(f"{t('printer.slot', slot=slot)}{suffix}", menu)
             action.setEnabled(spool.loaded_slot != slot)
             action.triggered.connect(lambda _=False, s=slot: self.load_into_slot(spool_id, s))
             load_menu.addAction(action)
 
         if spool.is_loaded:
-            self._add(menu, "Retirer de l'imprimante", lambda: self.unload(spool_id))
+            self._add(menu, t("action.menu.unload"), lambda: self.unload(spool_id))
 
         menu.addSeparator()
-        self._add(menu, "Modifier…", lambda: self.edit(spool_id))
-        self._add(menu, "Archiver", lambda: self.archive(spool_id))
-        self._add(menu, "Supprimer définitivement", lambda: self.delete(spool_id))
+        self._add(menu, t("action.menu.edit"), lambda: self.edit(spool_id))
+        self._add(menu, t("action.menu.archive"), lambda: self.archive(spool_id))
+        self._add(menu, t("action.menu.delete"), lambda: self.delete(spool_id))
 
         menu.exec(position)
 

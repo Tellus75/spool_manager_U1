@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..i18n import t
 from ..inventory import Inventory
 from ..models import Spool
 from . import theme
@@ -46,7 +47,7 @@ class SlotCard(QFrame):
         layout.setSpacing(9)
 
         header = QHBoxLayout()
-        number = QLabel(f"Emplacement {slot}")
+        number = QLabel(t("printer.slot", slot=slot))
         number.setStyleSheet(f"color: {theme.MUTED}; font-size: 11px; font-weight: 700;")
         header.addWidget(number)
         header.addStretch(1)
@@ -75,12 +76,12 @@ class SlotCard(QFrame):
 
         buttons = QHBoxLayout()
         buttons.setSpacing(7)
-        self._pick = QPushButton("Choisir…")
+        self._pick = QPushButton(t("printer.pick"))
         self._pick.setProperty("variant", "ghost")
         self._pick.clicked.connect(lambda: self.pick_requested.emit(self.slot))
         buttons.addWidget(self._pick)
 
-        self._clear = QPushButton("Retirer")
+        self._clear = QPushButton(t("printer.remove"))
         self._clear.setProperty("variant", "ghost")
         self._clear.clicked.connect(lambda: self.clear_requested.emit(self.slot))
         buttons.addWidget(self._clear)
@@ -96,9 +97,9 @@ class SlotCard(QFrame):
         if spool is None:
             self._apply_role("slot")
             self._dot.set_color("#2A2E36")
-            self._name.setText("Vide")
+            self._name.setText(t("printer.empty"))
             self._name.setStyleSheet(f"font-size: 14px; font-weight: 600; color: {theme.MUTED};")
-            self._details.setText("Déposez une bobine ici")
+            self._details.setText(t("printer.drop"))
             self._gauge.set_value(0, theme.BORDER)
             self._remaining.setText("")
             return
@@ -150,15 +151,11 @@ class PrinterTab(QWidget):
         root.setContentsMargins(22, 18, 22, 18)
         root.setSpacing(15)
 
-        title = QLabel("Snapmaker U1")
+        title = QLabel(t("printer.title"))
         title.setProperty("role", "title")
         root.addWidget(title)
 
-        subtitle = QLabel(
-            "Indiquez quelle bobine occupe chaque emplacement. Le décompte automatique "
-            "s'appuie sur cette correspondance pour attribuer sans ambiguïté le filament "
-            "consommé à chaque tranchage."
-        )
+        subtitle = QLabel(t("printer.subtitle"))
         subtitle.setProperty("role", "subtitle")
         subtitle.setWordWrap(True)
         root.addWidget(subtitle)
@@ -167,11 +164,11 @@ class PrinterTab(QWidget):
         self._slots_layout.setSpacing(12)
         root.addLayout(self._slots_layout)
 
-        shelf_title = QLabel("Bobines disponibles sur l'étagère")
+        shelf_title = QLabel(t("printer.available"))
         shelf_title.setProperty("role", "section")
         root.addWidget(shelf_title)
 
-        hint = QLabel("Faites glisser une bobine vers un emplacement pour la charger.")
+        hint = QLabel(t("printer.hint"))
         hint.setProperty("role", "subtitle")
         root.addWidget(hint)
 
@@ -203,7 +200,7 @@ class PrinterTab(QWidget):
     def _on_clear(self, slot: int) -> None:
         self.inventory.unload_slot(slot)
         self.actions.changed.emit()
-        self.actions.message.emit(f"Emplacement {slot} libéré")
+        self.actions.message.emit(t("printer.freed", slot=slot))
 
     def _on_pick(self, slot: int) -> None:
         menu = QMenu(self)
@@ -212,11 +209,11 @@ class PrinterTab(QWidget):
             key=spool_sort_key,
         )
         if not candidates:
-            menu.addAction("Aucune bobine disponible").setEnabled(False)
+            menu.addAction(t("printer.none")).setEnabled(False)
         for spool in candidates:
             label = f"{spool.display_name} — {spool.remaining_g:.0f} g"
             if spool.loaded_slot:
-                label += f" (actuellement en {spool.loaded_slot})"
+                label += t("printer.currently", slot=spool.loaded_slot)
             action = menu.addAction(label)
             action.triggered.connect(
                 lambda _=False, sid=spool.id: self.actions.load_into_slot(sid, slot)

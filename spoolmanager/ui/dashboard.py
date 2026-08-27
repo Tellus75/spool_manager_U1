@@ -15,12 +15,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ..i18n import plural, t
 from ..inventory import Inventory
 from . import theme
 from .actions import SpoolActions, spool_sort_key
 from .widgets import FlowLayout, SpoolCard, StatCard
 
-ALL_MATERIALS = "Toutes les matières"
+
+def all_materials_label() -> str:
+    return t("filter.all_materials")
 
 
 class Dashboard(QWidget):
@@ -56,7 +59,7 @@ class Dashboard(QWidget):
         titles = QVBoxLayout()
         titles.setSpacing(1)
 
-        title = QLabel("Mon étagère")
+        title = QLabel(t("dashboard.title"))
         title.setProperty("role", "title")
         self._subtitle = QLabel()
         self._subtitle.setProperty("role", "subtitle")
@@ -65,7 +68,7 @@ class Dashboard(QWidget):
 
         layout.addLayout(titles, 1)
 
-        add = QPushButton("Ajouter une bobine")
+        add = QPushButton(t("dashboard.add"))
         add.setProperty("variant", "primary")
         add.clicked.connect(self.actions.create)
         layout.addWidget(add, 0, Qt.AlignTop)
@@ -75,10 +78,10 @@ class Dashboard(QWidget):
         layout = QHBoxLayout()
         layout.setSpacing(12)
 
-        self._stat_stock = StatCard("Filament en stock", "-", theme.TEXT)
-        self._stat_spools = StatCard("Bobines actives", "-", theme.TEXT)
-        self._stat_value = StatCard("Valeur du stock", "-", theme.INFO)
-        self._stat_printed = StatCard("Filament imprimé", "-", theme.ACCENT)
+        self._stat_stock = StatCard(t("dashboard.stat.stock"), "-", theme.TEXT)
+        self._stat_spools = StatCard(t("dashboard.stat.spools"), "-", theme.TEXT)
+        self._stat_value = StatCard(t("dashboard.stat.value"), "-", theme.INFO)
+        self._stat_printed = StatCard(t("dashboard.stat.printed"), "-", theme.ACCENT)
 
         for card in (self._stat_stock, self._stat_spools, self._stat_value, self._stat_printed):
             layout.addWidget(card, 1)
@@ -94,7 +97,7 @@ class Dashboard(QWidget):
         self._banner_text.setWordWrap(True)
         layout.addWidget(self._banner_text, 1)
 
-        self._banner_button = QPushButton("Voir")
+        self._banner_button = QPushButton(t("dashboard.see"))
         self._banner_button.clicked.connect(self.review_requested.emit)
         layout.addWidget(self._banner_button)
 
@@ -106,7 +109,7 @@ class Dashboard(QWidget):
         layout.setSpacing(9)
 
         self._search = QLineEdit()
-        self._search.setPlaceholderText("Rechercher une bobine, une couleur, une case…")
+        self._search.setPlaceholderText(t("dashboard.search"))
         self._search.setClearButtonEnabled(True)
         self._search.textChanged.connect(self.refresh_cards)
         layout.addWidget(self._search, 1)
@@ -116,23 +119,19 @@ class Dashboard(QWidget):
         self._material_filter.currentTextChanged.connect(self.refresh_cards)
         layout.addWidget(self._material_filter)
 
-        self._only_low = QPushButton("Stock bas")
+        self._only_low = QPushButton(t("dashboard.low"))
         self._only_low.setCheckable(True)
         self._only_low.toggled.connect(self.refresh_cards)
         layout.addWidget(self._only_low)
 
-        self._only_loaded = QPushButton("Dans l'imprimante")
+        self._only_loaded = QPushButton(t("dashboard.loaded"))
         self._only_loaded.setCheckable(True)
         self._only_loaded.toggled.connect(self.refresh_cards)
         layout.addWidget(self._only_loaded)
         return layout
 
     def _build_shelf(self) -> QScrollArea:
-        self._empty_state = QLabel(
-            "Aucune bobine ne correspond.\n\n"
-            "Ajoutez vos bobines pour que Snapmaker Orca puisse décompter "
-            "automatiquement le filament à chaque tranchage."
-        )
+        self._empty_state = QLabel(t("dashboard.empty"))
         self._empty_state.setAlignment(Qt.AlignCenter)
         self._empty_state.setProperty("role", "subtitle")
 
@@ -171,8 +170,11 @@ class Dashboard(QWidget):
 
         loaded = sum(1 for s in self.inventory.slots().values() if s is not None)
         self._subtitle.setText(
-            f"{int(stats['spool_count'])} bobines suivies, "
-            f"{loaded} chargées dans la Snapmaker U1"
+            t(
+                "dashboard.subtitle",
+                count=int(stats["spool_count"]),
+                loaded=loaded,
+            )
         )
         self._refresh_banner(stats)
 
@@ -182,25 +184,23 @@ class Dashboard(QWidget):
         empty = int(stats["empty_count"])
 
         if pending:
-            plural = "s" if pending > 1 else ""
             self._banner_text.setText(
-                f"{pending} tranchage{plural} en attente de vérification : "
-                "la bobine à décompter n'a pas pu être déterminée avec certitude."
+                t("dashboard.banner.review", count=pending, plural=plural(pending))
             )
-            self._banner_button.setText("Vérifier")
+            self._banner_button.setText(t("dashboard.verify"))
             self._banner_button.show()
             self._banner.show()
             return
 
         alerts = []
         if empty:
-            alerts.append(f"{empty} bobine{'s' if empty > 1 else ''} vide{'s' if empty > 1 else ''}")
+            alerts.append(t("dashboard.banner.empty", count=empty, plural=plural(empty)))
         if low:
             threshold = self.inventory.low_threshold()
-            alerts.append(f"{low} sous les {threshold:.0f} g")
+            alerts.append(t("dashboard.banner.low", count=low, threshold=threshold))
 
         if alerts:
-            self._banner_text.setText("Stock à surveiller : " + ", ".join(alerts) + ".")
+            self._banner_text.setText(t("dashboard.banner.stock", alerts=", ".join(alerts)))
             self._banner_button.hide()
             self._banner.show()
         else:
@@ -212,7 +212,7 @@ class Dashboard(QWidget):
 
         self._material_filter.blockSignals(True)
         self._material_filter.clear()
-        self._material_filter.addItem(ALL_MATERIALS)
+        self._material_filter.addItem(all_materials_label())
         self._material_filter.addItems(materials)
         if current in materials:
             self._material_filter.setCurrentText(current)
@@ -235,7 +235,7 @@ class Dashboard(QWidget):
                 return False
 
         material = self._material_filter.currentText()
-        if material and material != ALL_MATERIALS and spool.material != material:
+        if material and material != all_materials_label() and spool.material != material:
             return False
 
         if self._only_low.isChecked() and spool.remaining_g > self.inventory.low_threshold():

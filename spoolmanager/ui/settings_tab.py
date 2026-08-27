@@ -11,6 +11,7 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
+    QComboBox,
     QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
@@ -28,7 +29,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from .. import autostart, config, db, orca
+from .. import autostart, config, db, i18n, orca
+from ..i18n import t
 from ..inventory import Inventory
 from . import theme
 
@@ -56,7 +58,7 @@ class SettingsTab(QWidget):
         root.setContentsMargins(22, 18, 22, 22)
         root.setSpacing(16)
 
-        title = QLabel("Réglages")
+        title = QLabel(t("settings.title"))
         title.setProperty("role", "title")
         root.addWidget(title)
 
@@ -71,7 +73,7 @@ class SettingsTab(QWidget):
     # ------------------------------------------------------- intégration Orca
 
     def _build_hook_group(self) -> QGroupBox:
-        group = QGroupBox("Intégration Snapmaker Orca")
+        group = QGroupBox(t("settings.hook"))
         layout = QVBoxLayout(group)
         layout.setSpacing(10)
 
@@ -79,16 +81,7 @@ class SettingsTab(QWidget):
         self._orca_status.setWordWrap(True)
         layout.addWidget(self._orca_status)
 
-        explanation = QLabel(
-            "Le hook est un script que Snapmaker Orca exécute au moment où il écrit le "
-            "fichier G-code. Il en lit le grammage et le transmet à cette application, "
-            "qui décompte alors le filament sur les bonnes bobines.\n\n"
-            "Trancher pour voir l'aperçu ne suffit pas : le décompte a lieu quand vous "
-            "exportez le G-code ou l'envoyez à l'imprimante.\n\n"
-            "Ce réglage appartient au profil d'impression : il doit être posé sur chaque "
-            "profil que vous utilisez. Seuls vos profils personnels peuvent être modifiés, "
-            "car les profils système sont réécrits à chaque mise à jour d'Orca."
-        )
+        explanation = QLabel(t("settings.hook.explain"))
         explanation.setProperty("role", "subtitle")
         explanation.setWordWrap(True)
         layout.addWidget(explanation)
@@ -98,11 +91,8 @@ class SettingsTab(QWidget):
         self._command.setReadOnly(True)
         command_row.addWidget(self._command, 1)
 
-        copy = QPushButton("Copier")
-        copy.setToolTip(
-            "À coller dans Orca sous Réglages d'impression > Autres > "
-            "Scripts de post-traitement, pour un profil système."
-        )
+        copy = QPushButton(t("settings.copy"))
+        copy.setToolTip(t("settings.copy_tip"))
         copy.clicked.connect(self._copy_command)
         command_row.addWidget(copy)
         layout.addLayout(command_row)
@@ -113,16 +103,16 @@ class SettingsTab(QWidget):
         layout.addWidget(self._presets)
 
         buttons = QHBoxLayout()
-        install = QPushButton("Installer le hook sur tous mes profils")
+        install = QPushButton(t("settings.install"))
         install.setProperty("variant", "primary")
         install.clicked.connect(self._install_hook)
         buttons.addWidget(install)
 
-        remove = QPushButton("Retirer le hook")
+        remove = QPushButton(t("settings.remove"))
         remove.clicked.connect(self._uninstall_hook)
         buttons.addWidget(remove)
 
-        refresh = QPushButton("Actualiser")
+        refresh = QPushButton(t("settings.refresh"))
         refresh.clicked.connect(self.refresh)
         buttons.addWidget(refresh)
         buttons.addStretch(1)
@@ -136,17 +126,15 @@ class SettingsTab(QWidget):
 
     def _copy_command(self) -> None:
         QGuiApplication.clipboard().setText(orca.hook_command())
-        self.message.emit("Commande du hook copiée dans le presse-papiers")
+        self.message.emit(t("settings.copied"))
 
     def _install_hook(self) -> None:
         presets = orca.user_process_presets()
         if not presets:
             QMessageBox.information(
                 self,
-                "Aucun profil personnel",
-                "Snapmaker Orca ne contient aucun profil d'impression personnel.\n\n"
-                "Dans Orca, dupliquez le profil que vous utilisez (icône d'enregistrement "
-                "à côté du nom du profil), puis revenez ici.",
+                t("settings.no_preset_title"),
+                t("settings.no_preset_body"),
             )
             return
 
@@ -156,7 +144,7 @@ class SettingsTab(QWidget):
         installed = sum(1 for path in presets if orca.install_hook(path))
         self.refresh()
         self.changed.emit()
-        self.message.emit(f"Hook installé sur {installed} profil(s) d'impression")
+        self.message.emit(t("settings.installed", count=installed))
 
     def _uninstall_hook(self) -> None:
         if orca.is_orca_running() and not self._confirm_orca_running():
@@ -164,14 +152,13 @@ class SettingsTab(QWidget):
 
         removed = sum(1 for path in orca.user_process_presets() if orca.uninstall_hook(path))
         self.refresh()
-        self.message.emit(f"Hook retiré de {removed} profil(s)")
+        self.message.emit(t("settings.removed", count=removed))
 
     def _confirm_orca_running(self) -> bool:
         answer = QMessageBox.warning(
             self,
-            "Snapmaker Orca est ouvert",
-            "Orca réécrit ses profils en se fermant et annulerait la modification.\n\n"
-            "Fermez Orca, puis réessayez. Continuer quand même ?",
+            t("settings.orca_open_title"),
+            t("settings.orca_open_body"),
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
@@ -180,33 +167,26 @@ class SettingsTab(QWidget):
     # ----------------------------------------------------- surveillance dossier
 
     def _build_watch_group(self) -> QGroupBox:
-        group = QGroupBox("Surveillance d'un dossier (secours)")
+        group = QGroupBox(t("settings.watch"))
         layout = QVBoxLayout(group)
         layout.setSpacing(10)
 
-        explanation = QLabel(
-            "Pour une imprimante Bambu (A1 Mini, X1, P1…), Orca exécute le hook dès le "
-            "tranchage. Pour la Snapmaker U1, Orca ne l'exécute qu'à l'export du G-code.\n\n"
-            "Spool Manager surveille aussi le dossier temporaire d'Orca : un tranchage U1 "
-            "est donc décompté dès que l'aperçu est prêt, sans export.\n\n"
-            "Le dossier ci-dessous reste un filet de sécurité si vous exportez ailleurs. "
-            "Un même fichier n'est jamais compté deux fois."
-        )
+        explanation = QLabel(t("settings.watch.explain"))
         explanation.setProperty("role", "subtitle")
         explanation.setWordWrap(True)
         layout.addWidget(explanation)
 
-        self._watch_enabled = QCheckBox("Surveiller un dossier d'export")
+        self._watch_enabled = QCheckBox(t("settings.watch.enable"))
         self._watch_enabled.toggled.connect(self._save_watch)
         layout.addWidget(self._watch_enabled)
 
         row = QHBoxLayout()
         self._watch_dir = QLineEdit()
-        self._watch_dir.setPlaceholderText("Dossier où Orca exporte vos G-code")
+        self._watch_dir.setPlaceholderText(t("settings.watch.ph"))
         self._watch_dir.editingFinished.connect(self._save_watch)
         row.addWidget(self._watch_dir, 1)
 
-        browse = QPushButton("Parcourir…")
+        browse = QPushButton(t("browse"))
         browse.clicked.connect(self._pick_watch_dir)
         row.addWidget(browse)
         layout.addLayout(row)
@@ -214,7 +194,7 @@ class SettingsTab(QWidget):
 
     def _pick_watch_dir(self) -> None:
         start = self._watch_dir.text() or str(Path.home())
-        chosen = QFileDialog.getExistingDirectory(self, "Dossier à surveiller", start)
+        chosen = QFileDialog.getExistingDirectory(self, t("settings.watch.pick"), start)
         if chosen:
             self._watch_dir.setText(chosen)
             self._save_watch()
@@ -227,39 +207,52 @@ class SettingsTab(QWidget):
     # ----------------------------------------------------------- préférences
 
     def _build_preferences_group(self) -> QGroupBox:
-        group = QGroupBox("Préférences")
+        group = QGroupBox(t("settings.prefs"))
         form = QFormLayout(group)
         form.setSpacing(10)
+
+        self._language = QComboBox()
+        for code, name in i18n.LANGUAGES:
+            self._language.addItem(name, code)
+        self._language.setToolTip(t("settings.language_tip"))
+        self._language.currentIndexChanged.connect(self._save_language)
+        form.addRow(t("settings.language"), self._language)
 
         self._threshold = QDoubleSpinBox()
         self._threshold.setRange(0, 5000)
         self._threshold.setDecimals(0)
         self._threshold.setSuffix(" g")
-        self._threshold.setToolTip("En dessous de ce restant, une bobine est signalée.")
+        self._threshold.setToolTip(t("settings.threshold_tip"))
         self._threshold.valueChanged.connect(self._save_preferences)
-        form.addRow("Seuil d'alerte de stock bas", self._threshold)
+        form.addRow(t("settings.threshold"), self._threshold)
 
         self._slots = QSpinBox()
         self._slots.setRange(1, 16)
-        self._slots.setToolTip("La Snapmaker U1 dispose de 4 emplacements filament.")
+        self._slots.setToolTip(t("settings.slots_tip"))
         self._slots.valueChanged.connect(self._save_preferences)
-        form.addRow("Emplacements de l'imprimante", self._slots)
+        form.addRow(t("settings.slots"), self._slots)
 
-        self._notifications = QCheckBox("Afficher une notification à chaque décompte")
+        self._notifications = QCheckBox(t("settings.notifications"))
         self._notifications.toggled.connect(self._save_preferences)
         form.addRow("", self._notifications)
 
-        self._tray = QCheckBox("Réduire dans la zone de notification au lieu de quitter")
-        self._tray.setToolTip(
-            "L'application doit rester active pour décompter les tranchages en direct."
-        )
+        self._tray = QCheckBox(t("settings.tray"))
+        self._tray.setToolTip(t("settings.tray_tip"))
         self._tray.toggled.connect(self._save_preferences)
         form.addRow("", self._tray)
 
-        self._autostart = QCheckBox("Démarrer automatiquement avec Windows")
+        self._autostart = QCheckBox(t("settings.autostart"))
         self._autostart.toggled.connect(self._save_autostart)
         form.addRow("", self._autostart)
         return group
+
+    def _save_language(self, _index: int = 0) -> None:
+        code = self._language.currentData()
+        if not code or code == i18n.current_language():
+            return
+        db.set_setting(self.conn, "language", code)
+        i18n.set_language(code)
+        self.changed.emit()
 
     def _save_preferences(self) -> None:
         db.set_setting(self.conn, "low_threshold_g", str(int(self._threshold.value())))
@@ -272,16 +265,16 @@ class SettingsTab(QWidget):
 
     def _save_autostart(self, enabled: bool) -> None:
         if not autostart.set_enabled(enabled):
-            self.message.emit("Impossible de modifier le démarrage automatique")
+            self.message.emit(t("settings.autostart.fail"))
             return
         self.message.emit(
-            "Démarrage avec Windows activé" if enabled else "Démarrage avec Windows désactivé"
+            t("settings.autostart.on") if enabled else t("settings.autostart.off")
         )
 
     # --------------------------------------------------------------- données
 
     def _build_data_group(self) -> QGroupBox:
-        group = QGroupBox("Données et diagnostic")
+        group = QGroupBox(t("settings.data"))
         layout = QVBoxLayout(group)
         layout.setSpacing(10)
 
@@ -293,8 +286,8 @@ class SettingsTab(QWidget):
 
         buttons = QHBoxLayout()
         for text, target in (
-            ("Ouvrir le dossier de données", config.data_dir),
-            ("Ouvrir le journal du hook", config.log_dir),
+            (t("settings.open_data"), config.data_dir),
+            (t("settings.open_log"), config.log_dir),
         ):
             button = QPushButton(text)
             button.clicked.connect(lambda _=False, t=target: self._open(t()))
@@ -308,7 +301,7 @@ class SettingsTab(QWidget):
             path.mkdir(parents=True, exist_ok=True)
             os.startfile(str(path))
         except OSError:
-            self.message.emit(f"Impossible d'ouvrir {path}")
+            self.message.emit(t("settings.open_fail", path=path))
 
     # --------------------------------------------------------------- refresh
 
@@ -316,13 +309,11 @@ class SettingsTab(QWidget):
         self._command.setText(orca.hook_command())
 
         if not orca.is_installed():
-            self._orca_status.setText(
-                "Snapmaker Orca n'a pas été trouvé sur cet ordinateur."
-            )
+            self._orca_status.setText(t("settings.orca_missing"))
             self._orca_status.setStyleSheet(f"color: {theme.DANGER};")
         else:
-            running = " (actuellement ouvert)" if orca.is_orca_running() else ""
-            self._orca_status.setText(f"Orca détecté : {orca.orca_dir()}{running}")
+            running = t("settings.orca_running") if orca.is_orca_running() else ""
+            self._orca_status.setText(t("settings.orca_found", path=orca.orca_dir(), running=running))
             self._orca_status.setStyleSheet(f"color: {theme.MUTED};")
 
         status = orca.hook_status()
@@ -339,20 +330,15 @@ class SettingsTab(QWidget):
 
         if not status:
             self._presets.addItem(
-                QListWidgetItem("Aucun profil d'impression personnel dans Orca")
+                QListWidgetItem(t("settings.no_user_preset"))
             )
-            self._hook_warning.setText(
-                "Dupliquez dans Orca le profil d'impression que vous utilisez pour pouvoir "
-                "y poser le hook, ou activez la surveillance de dossier ci-dessous."
-            )
+            self._hook_warning.setText(t("settings.warn_duplicate"))
         elif not any(hooked for _, hooked in status):
-            self._hook_warning.setText(
-                "Le hook n'est posé sur aucun profil : aucun tranchage ne sera décompté "
-                "automatiquement."
-            )
+            self._hook_warning.setText(t("settings.warn_none"))
         else:
             self._hook_warning.setText("")
 
+        self._language.blockSignals(True)
         self._threshold.blockSignals(True)
         self._slots.blockSignals(True)
         self._notifications.blockSignals(True)
@@ -360,6 +346,10 @@ class SettingsTab(QWidget):
         self._watch_enabled.blockSignals(True)
         self._autostart.blockSignals(True)
 
+        current = db.get_setting(self.conn, "language", i18n.DEFAULT_LANGUAGE)
+        index = self._language.findData(current)
+        if index >= 0:
+            self._language.setCurrentIndex(index)
         self._threshold.setValue(self.inventory.low_threshold())
         self._slots.setValue(self.inventory.slot_count())
         self._notifications.setChecked(db.get_setting(self.conn, "notifications", "1") == "1")
@@ -368,6 +358,7 @@ class SettingsTab(QWidget):
         self._watch_dir.setText(db.get_setting(self.conn, "watch_dir", ""))
         self._autostart.setChecked(autostart.is_enabled())
 
+        self._language.blockSignals(False)
         self._threshold.blockSignals(False)
         self._slots.blockSignals(False)
         self._notifications.blockSignals(False)
@@ -375,7 +366,9 @@ class SettingsTab(QWidget):
         self._watch_enabled.blockSignals(False)
         self._autostart.blockSignals(False)
 
+        from .. import __version__
+
         self._data_path.setText(
-            f"Base de données et journaux : {config.data_dir()}\n"
-            f"Boîte de réception des tranchages : {config.inbox_dir()}"
+            f"{t('settings.version', version=__version__)}\n"
+            + t("settings.data_path", data=config.data_dir(), inbox=config.inbox_dir())
         )

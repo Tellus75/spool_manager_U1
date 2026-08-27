@@ -13,7 +13,8 @@ from PySide6.QtWidgets import (
     QTabWidget,
 )
 
-from .. import db
+from .. import db, i18n
+from ..i18n import t
 from ..inventory import DuplicateJobError, Inventory
 from ..models import JOB_REVIEW, ParsedJob
 from ..watcher import Watcher
@@ -57,8 +58,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.conn = connection
         self.inventory = Inventory(connection)
+        self._language = i18n.current_language()
 
-        self.setWindowTitle("Spool Manager — bobines Snapmaker")
         self.setMinimumSize(QSize(1100, 720))
         self.resize(1320, 850)
         self.setWindowIcon(build_icon())
@@ -69,6 +70,7 @@ class MainWindow(QMainWindow):
 
         self._build_tabs()
         self._build_tray()
+        self._apply_chrome()
 
         self.watcher = Watcher(self)
         self.watcher.job_detected.connect(self._on_job_detected)
@@ -76,14 +78,20 @@ class MainWindow(QMainWindow):
         self._apply_watch_settings()
         self.watcher.start()
 
-        self.statusBar().showMessage("Prêt · en attente d'un tranchage depuis Snapmaker Orca")
-
         if not start_hidden:
             self.show()
 
     # ------------------------------------------------------------------ montage
 
+    def _apply_chrome(self) -> None:
+        self.setWindowTitle(t("window.title"))
+        self.statusBar().showMessage(t("ready"))
+        self.tray.setToolTip("Spool Manager")
+
     def _build_tabs(self) -> None:
+        previous = self.tabs.currentIndex() if hasattr(self, "tabs") else 0
+        old = getattr(self, "tabs", None)
+
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
 
@@ -93,11 +101,11 @@ class MainWindow(QMainWindow):
         self.history = HistoryTab(self.inventory)
         self.settings = SettingsTab(self.inventory)
 
-        self.tabs.addTab(self.dashboard, "Tableau de bord")
-        self.tabs.addTab(self.spools, "Bobines")
-        self.tabs.addTab(self.printer, "Imprimante U1")
-        self.tabs.addTab(self.history, "Historique")
-        self.tabs.addTab(self.settings, "Réglages")
+        self.tabs.addTab(self.dashboard, t("tab.dashboard"))
+        self.tabs.addTab(self.spools, t("tab.spools"))
+        self.tabs.addTab(self.printer, t("tab.printer"))
+        self.tabs.addTab(self.history, t("tab.history"))
+        self.tabs.addTab(self.settings, t("tab.settings"))
 
         self.dashboard.review_requested.connect(self._open_pending)
         self.history.changed.connect(self.refresh_all)
@@ -106,28 +114,37 @@ class MainWindow(QMainWindow):
         self.settings.message.connect(self.notify_status)
 
         self.setCentralWidget(self.tabs)
+        self.tabs.setCurrentIndex(previous)
+        if old is not None:
+            old.deleteLater()
 
     def _build_tray(self) -> None:
-        self.tray = QSystemTrayIcon(build_icon(), self)
-        self.tray.setToolTip("Spool Manager")
+        if not hasattr(self, "tray"):
+            self.tray = QSystemTrayIcon(build_icon(), self)
+            self.tray.activated.connect(self._on_tray_activated)
+            self.tray.show()
 
         menu = QMenu()
-        show = QAction("Ouvrir Spool Manager", self)
+        show = QAction(t("tray.open"), self)
         show.triggered.connect(self._restore)
         menu.addAction(show)
 
-        add = QAction("Ajouter une bobine…", self)
+        add = QAction(t("tray.add"), self)
         add.triggered.connect(lambda: (self._restore(), self.actions_controller.create()))
         menu.addAction(add)
 
         menu.addSeparator()
-        quit_action = QAction("Quitter", self)
+        quit_action = QAction(t("tray.quit"), self)
         quit_action.triggered.connect(self._quit)
         menu.addAction(quit_action)
 
         self.tray.setContextMenu(menu)
-        self.tray.activated.connect(self._on_tray_activated)
-        self.tray.show()
+
+    def _retranslate(self) -> None:
+        self._build_tabs()
+        self._build_tray()
+        self._apply_chrome()
+        self.refresh_all()
 
     # ---------------------------------------------------------------- réactions
 
@@ -150,9 +167,8 @@ class MainWindow(QMainWindow):
             event.ignore()
             self.hide()
             self.tray.showMessage(
-                "Spool Manager continue de tourner",
-                "Les tranchages restent décomptés automatiquement. "
-                "Clic droit sur l'icône pour quitter.",
+                t("tray.running.title"),
+                t("tray.running.body"),
                 build_icon(),
                 4000,
             )
@@ -162,6 +178,10 @@ class MainWindow(QMainWindow):
 
     def _on_settings_changed(self) -> None:
         self._apply_watch_settings()
+        if i18n.current_language() != self._language:
+            self._language = i18n.current_language()
+            self._retranslate()
+            return
         self.refresh_all()
 
     def _apply_watch_settings(self) -> None:
@@ -180,21 +200,20 @@ class MainWindow(QMainWindow):
         try:
             job_id, status, matches = self.inventory.ingest(job)
         except DuplicateJobError:
-            self.notify_status(f"« {job.project_name} » a déjà été décompté, ignoré")
+            self.notify_status(t("job.duplicate", name=job.project_name))
             return
         except Exception as error:
-            self.notify_status(f"Échec du décompte : {error}")
+            self.notify_status(t("job.fail", error=error))
             return
 
         self.refresh_all()
 
         if status == JOB_REVIEW:
             self._notify(
-                "Tranchage à vérifier",
-                f"« {job.project_name} » : {job.total_g:.0f} g. "
-                "La bobine à décompter n'a pas pu être déterminée.",
+                t("job.review.title"),
+                t("job.review.body", name=job.project_name, grams=job.total_g),
             )
-            self.notify_status(f"« {job.project_name} » en attente de vérification")
+            self.notify_status(t("job.review.status", name=job.project_name))
             return
 
         details = []
@@ -204,13 +223,17 @@ class MainWindow(QMainWindow):
             spool = self.inventory.get_spool(match.spool_id)
             if spool:
                 details.append(
-                    f"{match.usage.grams:.0f} g sur {spool.display_name} "
-                    f"({spool.remaining_g:.0f} g restants)"
+                    t(
+                        "job.detail",
+                        grams=match.usage.grams,
+                        name=spool.display_name,
+                        remaining=spool.remaining_g,
+                    )
                 )
 
-        summary = "\n".join(details) or f"{job.total_g:.0f} g décomptés"
-        self._notify(f"{job.project_name} : {job.total_g:.0f} g décomptés", summary)
-        self.notify_status(f"« {job.project_name} » décompté · {job.total_g:.0f} g")
+        summary = "\n".join(details) or t("job.fallback", grams=job.total_g)
+        self._notify(t("job.done.title", name=job.project_name, grams=job.total_g), summary)
+        self.notify_status(t("job.done.status", name=job.project_name, grams=job.total_g))
 
         self._warn_if_low(matches)
 
@@ -222,9 +245,8 @@ class MainWindow(QMainWindow):
             spool = self.inventory.get_spool(match.spool_id)
             if spool and 0 < spool.remaining_g <= threshold:
                 self._notify(
-                    "Stock bas",
-                    f"Il ne reste que {spool.remaining_g:.0f} g sur "
-                    f"« {spool.display_name} ».",
+                    t("job.low.title"),
+                    t("job.low.body", remaining=spool.remaining_g, name=spool.display_name),
                 )
 
     def _notify(self, title: str, body: str) -> None:
@@ -246,13 +268,9 @@ class MainWindow(QMainWindow):
 
         pending = self.inventory.pending_review_count()
         self.tabs.setTabText(
-            TAB_HISTORY, f"Historique ({pending})" if pending else "Historique"
+            TAB_HISTORY,
+            t("tab.history_pending", count=pending) if pending else t("tab.history"),
         )
 
     def show_about(self) -> None:
-        QMessageBox.about(
-            self,
-            "À propos",
-            "Spool Manager\n\n"
-            "Suivi des bobines de filament couplé à Snapmaker Orca.",
-        )
+        QMessageBox.about(self, t("about.title"), t("about.body"))

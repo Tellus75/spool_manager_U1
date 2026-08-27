@@ -24,7 +24,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from PySide6.QtWidgets import QApplication
 
-    from . import config, db
+    from . import config, db, i18n
     from .ui import theme
     from .ui.main_window import MainWindow, build_icon
 
@@ -39,6 +39,7 @@ def main(argv: list[str] | None = None) -> int:
     app.setQuitOnLastWindowClosed(False)
 
     connection = db.connect()
+    i18n.set_language(db.get_setting(connection, "language", i18n.DEFAULT_LANGUAGE))
     window = MainWindow(connection, start_hidden="--tray" in argv)
 
     exit_code = app.exec()

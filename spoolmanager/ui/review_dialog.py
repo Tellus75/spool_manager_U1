@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import matching
+from ..i18n import t
 from ..inventory import Inventory
 from ..models import ParsedUsage, format_timestamp
 from . import theme
@@ -56,14 +57,21 @@ class UsageRow(QFrame):
         description.setSpacing(1)
 
         slot_text = (
-            f"Emplacement {usage.slot}" if usage.slot is not None else "Filament"
+            t("history.slot", slot=usage.slot) if usage.slot is not None else t("history.filament")
         )
-        headline = QLabel(f"{slot_text} · {usage.grams:.1f} g de {usage.material or '?'}")
+        headline = QLabel(
+            t(
+                "review.line",
+                slot=slot_text,
+                grams=usage.grams,
+                material=usage.material or "?",
+            )
+        )
         headline.setStyleSheet("font-weight: 600;")
         description.addWidget(headline)
 
         details = " · ".join(p for p in (usage.preset, usage.vendor, usage.color_hex) if p)
-        subtitle = QLabel(details or "Aucune information de profil dans le G-code")
+        subtitle = QLabel(details or t("review.no_preset"))
         subtitle.setProperty("role", "subtitle")
         subtitle.setStyleSheet(f"color: {theme.MUTED}; font-size: 11px;")
         description.addWidget(subtitle)
@@ -88,18 +96,18 @@ class UsageRow(QFrame):
         scored.sort(key=lambda c: -c.score)
 
         if self.grams <= 0:
-            self.combo.addItem("Aucun décompte nécessaire", None)
+            self.combo.addItem(t("review.none_needed"), None)
             self.combo.setEnabled(False)
             return
 
-        self.combo.addItem("— Ne rien décompter —", None)
+        self.combo.addItem(t("review.skip"), None)
         for candidate in scored:
             spool = candidate.spool
             label = f"{spool.display_name} — {spool.remaining_g:.0f} g"
             if spool.loaded_slot:
-                label += f" · emplacement {spool.loaded_slot}"
+                label += t("review.in_slot", slot=spool.loaded_slot)
             if spool.remaining_g < self.grams:
-                label += "  (stock insuffisant)"
+                label += t("review.insufficient")
             self.combo.addItem(label, spool.id)
 
         others = [s for s in spools if s.id not in {c.spool.id for c in scored}]
@@ -108,7 +116,7 @@ class UsageRow(QFrame):
             for spool in others:
                 self.combo.addItem(
                     f"{spool.display_name} — {spool.remaining_g:.0f} g "
-                    f"({spool.material}, matière différente)",
+                    f"{t('review.other_material', material=spool.material)}",
                     spool.id,
                 )
 
@@ -132,28 +140,29 @@ class ReviewDialog(QDialog):
         self.discarded = False
 
         job = inventory.get_job(job_id)
-        self.setWindowTitle("Vérifier un tranchage")
+        self.setWindowTitle(t("review.title"))
         self.setMinimumWidth(720)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 18, 20, 18)
         layout.setSpacing(13)
 
-        title = QLabel(job["project_name"] or "Tranchage sans nom")
+        title = QLabel(job["project_name"] or t("review.unnamed"))
         title.setProperty("role", "title")
         layout.addWidget(title)
 
         summary = QLabel(
-            f"{job['total_g']:.1f} g au total · {job['printer'] or 'imprimante inconnue'} · "
-            f"tranché le {format_timestamp(job['sliced_at'] or job['created_at'])}"
+            t(
+                "review.summary",
+                grams=job["total_g"],
+                printer=job["printer"] or t("review.unknown_printer"),
+                when=format_timestamp(job["sliced_at"] or job["created_at"]),
+            )
         )
         summary.setProperty("role", "subtitle")
         layout.addWidget(summary)
 
-        explanation = QLabel(
-            "L'attribution automatique n'a pas été assez sûre. Confirmez la bobine à "
-            "décompter pour chaque filament, ou ignorez ce tranchage."
-        )
+        explanation = QLabel(t("review.explain"))
         explanation.setProperty("role", "subtitle")
         explanation.setWordWrap(True)
         layout.addWidget(explanation)
@@ -174,17 +183,17 @@ class ReviewDialog(QDialog):
         layout.addStretch(1)
 
         footer = QHBoxLayout()
-        discard = QPushButton("Ignorer ce tranchage")
+        discard = QPushButton(t("review.discard"))
         discard.setProperty("variant", "danger")
-        discard.setToolTip("Supprime la ligne sans jamais toucher au stock.")
+        discard.setToolTip(t("review.discard_tip"))
         discard.clicked.connect(self._discard)
         footer.addWidget(discard)
         footer.addStretch(1)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Ok).setText("Décompter")
+        buttons.button(QDialogButtonBox.Ok).setText(t("review.deduct"))
         buttons.button(QDialogButtonBox.Ok).setProperty("variant", "primary")
-        buttons.button(QDialogButtonBox.Cancel).setText("Plus tard")
+        buttons.button(QDialogButtonBox.Cancel).setText(t("review.later"))
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         footer.addWidget(buttons)
