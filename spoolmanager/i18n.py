@@ -191,6 +191,11 @@ _STRINGS: dict[str, dict[str, str]] = {
     "history.verify": {"fr": "Vérifier…", "en": "Review…"},
     "history.undo": {"fr": "Annuler le décompte", "en": "Undo deduction"},
     "history.partial": {"fr": "Impression arrêtée…", "en": "Stopped print…"},
+    "history.reassign": {"fr": "Changer la bobine…", "en": "Change spool…"},
+    "history.reassigned": {
+        "fr": "Bobines de « {name} » corrigées",
+        "en": "Spools of “{name}” corrected",
+    },
     "history.partial.done": {
         "fr": "Décompte de « {name} » ajusté à {grams:.1f} g",
         "en": "Deduction of “{name}” adjusted to {grams:.1f} g",
@@ -291,6 +296,19 @@ _STRINGS: dict[str, dict[str, str]] = {
         "en": "Automatic matching was not confident enough. Confirm the spool to deduct "
         "for each filament, or ignore this slice.",
     },
+    "reassign.title": {
+        "fr": "Corriger les bobines",
+        "en": "Correct the spools",
+    },
+    "reassign.explain": {
+        "fr": "Si la détection automatique s'est trompée, choisissez la bobine réellement "
+        "utilisée. Le filament déjà décompté est recrédité sur l'ancienne bobine et "
+        "retiré de la nouvelle.",
+        "en": "If automatic matching picked the wrong spool, choose the one that was "
+        "actually used. The already deducted filament is credited back to the old "
+        "spool and taken from the new one.",
+    },
+    "reassign.apply": {"fr": "Corriger le décompte", "en": "Correct deduction"},
     "review.no_preset": {
         "fr": "Aucune information de profil dans le G-code",
         "en": "No preset information in the G-code",
@@ -763,6 +781,10 @@ _STRINGS: dict[str, dict[str, str]] = {
     "reason.partial": {
         "fr": "Impression inachevée",
         "en": "Stopped print",
+    },
+    "reason.reassign": {
+        "fr": "Changement de bobine",
+        "en": "Spool change",
     },
     "job.status.applied": {"fr": "Décompté", "en": "Deducted"},
     "job.status.review": {"fr": "À vérifier", "en": "To review"},

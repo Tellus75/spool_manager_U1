@@ -58,7 +58,7 @@ the G-code says which slot was used.
 
 ### Windows installer (recommended)
 
-Download `SpoolManager-1.0.2-Setup.exe` from the [GitHub releases](https://github.com/Tellus75/spool_manager_U1/releases)
+Download `SpoolManager-1.0.3-Setup.exe` from the [GitHub releases](https://github.com/Tellus75/spool_manager_U1/releases)
 and run it. The app installs into your Windows user profile, with no administrator
 rights, and creates a Start menu shortcut.
 
@@ -89,7 +89,7 @@ pip install -r requirements-dev.txt
 powershell -ExecutionPolicy Bypass -File tools/build_installer.ps1
 ```
 
-The installer then lands in `installer\output`. A Git tag such as `v1.0.2` also
+The installer then lands in `installer\output`. A Git tag such as `v1.0.3` also
 triggers a GitHub Actions build.
 
 The PyInstaller output is in `dist/SpoolManager`.

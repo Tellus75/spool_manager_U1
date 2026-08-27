@@ -368,6 +368,76 @@ class TestPartialPrint:
         assert inv.get_job(job_id)["total_cost"] == pytest.approx(0.25)
 
 
+class TestReassignSpool:
+    def test_moves_the_deduction_to_the_other_spool(self, inv, make_spool):
+        first = make_spool(net=1000, slot=1, material="PLA", name="PLA A")
+        second = make_spool(net=1000, material="PLA", name="PLA B")
+        job_id, _, _ = inv.ingest(
+            job([ParsedUsage(extruder_index=0, slot=1, grams=40.0, material="PLA")])
+        )
+        usage_id = inv.job_usages(job_id)[0]["id"]
+
+        inv.reassign_job(job_id, {usage_id: second})
+
+        assert inv.job_usages(job_id)[0]["spool_id"] == second
+        assert inv.get_spool(first).remaining_g == pytest.approx(1000)
+        assert inv.get_spool(second).remaining_g == pytest.approx(960)
+        assert inv.stats()["total_printed_g"] == pytest.approx(40.0)
+
+    def test_keeps_a_partial_correction(self, inv, make_spool):
+        first = make_spool(net=1000, slot=1, material="PLA")
+        second = make_spool(net=1000, material="PLA")
+        job_id, _, _ = inv.ingest(
+            job([ParsedUsage(extruder_index=0, slot=1, grams=40.0, material="PLA")])
+        )
+        usage_id = inv.job_usages(job_id)[0]["id"]
+        inv.revise_job(job_id, {usage_id: 10.0})
+        inv.reassign_job(job_id, {usage_id: second})
+
+        assert inv.get_spool(first).remaining_g == pytest.approx(1000)
+        assert inv.get_spool(second).remaining_g == pytest.approx(990)
+        assert inv.job_usages(job_id)[0]["grams"] == pytest.approx(10.0)
+
+    def test_undo_after_reassign_restores_both_spools(self, inv, make_spool):
+        first = make_spool(net=1000, slot=1, material="PLA")
+        second = make_spool(net=1000, material="PLA")
+        job_id, _, _ = inv.ingest(
+            job([ParsedUsage(extruder_index=0, slot=1, grams=25.0, material="PLA")])
+        )
+        usage_id = inv.job_usages(job_id)[0]["id"]
+        inv.reassign_job(job_id, {usage_id: second})
+        inv.revert_job(job_id)
+
+        assert inv.get_spool(first).remaining_g == pytest.approx(1000)
+        assert inv.get_spool(second).remaining_g == pytest.approx(1000)
+
+    def test_same_spool_is_a_noop(self, inv, make_spool):
+        spool_id = make_spool(net=1000, slot=1, material="PLA")
+        job_id, _, _ = inv.ingest(
+            job([ParsedUsage(extruder_index=0, slot=1, grams=12.0, material="PLA")])
+        )
+        usage_id = inv.job_usages(job_id)[0]["id"]
+        inv.reassign_job(job_id, {usage_id: spool_id})
+
+        reasons = [m["reason"] for m in inv.movements(spool_id)]
+        assert reasons == ["print", "init"]
+        assert inv.get_spool(spool_id).remaining_g == pytest.approx(988)
+
+    def test_does_nothing_unless_the_job_was_applied(self, inv, make_spool):
+        spool_id = make_spool(net=1000, slot=1, material="PLA")
+        other = make_spool(net=1000, material="PLA")
+        job_id, status, _ = inv.ingest(
+            job([ParsedUsage(extruder_index=0, slot=1, grams=20.0, material="ASA")])
+        )
+        assert status == JOB_REVIEW
+        usage_id = inv.job_usages(job_id)[0]["id"]
+        inv.reassign_job(job_id, {usage_id: other})
+
+        assert inv.get_spool(spool_id).remaining_g == 1000
+        assert inv.get_spool(other).remaining_g == 1000
+        assert inv.job_usages(job_id)[0]["spool_id"] is None
+
+
 class TestStats:
     def test_totals(self, inv, make_spool):
         make_spool(net=1000, price=25.0)

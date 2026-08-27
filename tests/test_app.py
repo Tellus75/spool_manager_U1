@@ -136,12 +136,14 @@ class TestUndo:
         window.history._table.selectRow(0)
         assert window.history._undo_button.isEnabled()
         assert window.history._partial_button.isEnabled()
+        assert window.history._reassign_button.isEnabled()
         assert not window.history._review_button.isEnabled()
 
         window.history._undo_selected()
         window.history._table.selectRow(0)
         assert not window.history._undo_button.isEnabled()
         assert not window.history._partial_button.isEnabled()
+        assert not window.history._reassign_button.isEnabled()
 
 
 class TestHistoryFilters:
@@ -200,6 +202,25 @@ class TestStoppedPrint:
         first = next(iter(dialog._spins.values()))
         first.setValue(first.maximum() + 10)
         assert first.value() == first.maximum()
+
+    def test_reassigning_a_spool_from_history(self, window):
+        send_job(window)
+        job_id = window.inventory.list_jobs()[0]["id"]
+        pla = next(u for u in window.inventory.job_usages(job_id) if u["material"] == "PLA")
+        other = window.inventory.create_spool(
+            window.inventory.create_filament(
+                vendor="Generic", material="PLA", name="PLA de secours", color_hex="#EEEEEE"
+            ),
+            1000,
+        )
+
+        window.inventory.reassign_job(job_id, {int(pla["id"]): other})
+        window.refresh_all()
+        window.history._table.selectRow(0)
+
+        assert window.inventory.slots()[1].remaining_g == pytest.approx(1000)
+        assert window.inventory.get_spool(other).remaining_g == pytest.approx(985.62)
+        assert "PLA de secours" in window.history._detail_tree.topLevelItem(0).text(1)
 
 
 class TestSettings:

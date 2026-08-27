@@ -100,6 +100,10 @@ class HistoryTab(QWidget):
         self._partial_button = QPushButton(t("history.partial"))
         self._partial_button.clicked.connect(self._partial_selected)
         layout.addWidget(self._partial_button, 0, Qt.AlignTop)
+
+        self._reassign_button = QPushButton(t("history.reassign"))
+        self._reassign_button.clicked.connect(self._reassign_selected)
+        layout.addWidget(self._reassign_button, 0, Qt.AlignTop)
         return layout
 
     def _build_table(self) -> QTableWidget:
@@ -215,6 +219,7 @@ class HistoryTab(QWidget):
             self._review_button.setEnabled(False)
             self._undo_button.setEnabled(False)
             self._partial_button.setEnabled(False)
+            self._reassign_button.setEnabled(False)
             return
 
         job = self.inventory.get_job(job_id)
@@ -272,6 +277,7 @@ class HistoryTab(QWidget):
         self._review_button.setEnabled(job["status"] == JOB_REVIEW)
         self._undo_button.setEnabled(job["status"] == JOB_APPLIED)
         self._partial_button.setEnabled(job["status"] == JOB_APPLIED)
+        self._reassign_button.setEnabled(job["status"] == JOB_APPLIED)
 
     def _open_selected(self) -> None:
         job_id = self._selected_job_id()
@@ -280,6 +286,8 @@ class HistoryTab(QWidget):
         job = self.inventory.get_job(job_id)
         if job and job["status"] == JOB_REVIEW:
             self._review_selected()
+        elif job and job["status"] == JOB_APPLIED:
+            self._reassign_selected()
 
     def _review_selected(self) -> None:
         job_id = self._selected_job_id()
@@ -323,6 +331,21 @@ class HistoryTab(QWidget):
         name = job["project_name"] if job else ""
         self.changed.emit()
         self.message.emit(t("history.partial.done", name=name, grams=grams))
+        self.refresh()
+
+    def _reassign_selected(self) -> None:
+        job_id = self._selected_job_id()
+        if job_id is None:
+            return
+
+        dialog = ReviewDialog(self.inventory, job_id, self, reassign=True)
+        if not dialog.exec():
+            return
+
+        job = self.inventory.get_job(job_id)
+        name = job["project_name"] if job else ""
+        self.changed.emit()
+        self.message.emit(t("history.reassigned", name=name))
         self.refresh()
 
     def show_pending(self) -> None:

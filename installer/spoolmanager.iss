@@ -3,7 +3,7 @@
 ; (après python -m PyInstaller --noconfirm SpoolManager.spec)
 
 #define MyAppName "Spool Manager"
-#define MyAppVersion "1.0.2"
+#define MyAppVersion "1.0.3"
 #define MyAppPublisher "Spool Manager"
 #define MyAppExeName "SpoolManager.exe"
 #define MyAppURL "https://github.com/Tellus75/spool_manager_U1"

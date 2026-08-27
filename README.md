@@ -64,7 +64,7 @@ l'attribution quasi certaine : le G-code indique quel emplacement est consommé.
 
 ### Installeur Windows (recommandé)
 
-Téléchargez `SpoolManager-1.0.2-Setup.exe` depuis les [releases GitHub](https://github.com/Tellus75/spool_manager_U1/releases)
+Téléchargez `SpoolManager-1.0.3-Setup.exe` depuis les [releases GitHub](https://github.com/Tellus75/spool_manager_U1/releases)
 et lancez-le. L'application s'installe dans votre profil Windows, sans droits
 administrateur, puis crée un raccourci dans le menu Démarrer.
 
@@ -95,7 +95,7 @@ pip install -r requirements-dev.txt
 powershell -ExecutionPolicy Bypass -File tools/build_installer.ps1
 ```
 
-L'installeur se trouve alors dans `installer\output`. Un tag Git `v1.0.2` déclenche
+L'installeur se trouve alors dans `installer\output`. Un tag Git `v1.0.3` déclenche
 aussi la construction sur GitHub Actions.
 
 Le résultat est dans `dist/SpoolManager`.

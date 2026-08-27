@@ -21,6 +21,7 @@ from .models import (
     REASON_INIT,
     REASON_PARTIAL,
     REASON_PRINT,
+    REASON_REASSIGN,
     REASON_UNDO,
     REASON_WEIGH,
     STATE_ARCHIVED,
@@ -435,8 +436,8 @@ class Inventory:
 
         rows = self.conn.execute(
             "SELECT spool_id, SUM(delta_g) AS total FROM stock_movement "
-            "WHERE job_id = ? AND reason IN (?, ?) GROUP BY spool_id",
-            (job_id, REASON_PRINT, REASON_PARTIAL),
+            "WHERE job_id = ? AND reason IN (?, ?, ?) GROUP BY spool_id",
+            (job_id, REASON_PRINT, REASON_PARTIAL, REASON_REASSIGN),
         ).fetchall()
 
         for row in rows:
@@ -557,6 +558,71 @@ class Inventory:
         )
         self.conn.commit()
 
+    def reassign_job(self, job_id: int, assignments: dict[int, int | None]) -> None:
+        """Déplace le décompte d'un job appliqué vers d'autres bobines.
+
+        Le filament déjà retiré est recrédité sur l'ancienne bobine, puis le même
+        grammage (éventuellement déjà corrigé après une impression inachevée) est
+        retiré de la nouvelle. Le retrait d'origine n'est pas modifié.
+        """
+        job = self.get_job(job_id)
+        if job is None or job["status"] != JOB_APPLIED:
+            return
+
+        sliced_map = self.sliced_grams_map(job_id)
+        label = job["project_name"] or ""
+
+        for usage in self.job_usages(job_id):
+            uid = int(usage["id"])
+            if uid not in assignments:
+                continue
+            new_id = assignments[uid]
+            if new_id is not None:
+                new_id = int(new_id)
+            old_id = int(usage["spool_id"]) if usage["spool_id"] is not None else None
+            if new_id == old_id:
+                continue
+
+            sliced = sliced_map.get(uid, float(usage["grams"]))
+            current = float(usage["grams"])
+
+            if old_id is not None and abs(current) >= 0.001:
+                self._add_movement(
+                    old_id,
+                    current,
+                    REASON_REASSIGN,
+                    job_id=job_id,
+                    note=label,
+                )
+                self._refresh_state(old_id)
+
+            if new_id is not None and sliced >= 0.001:
+                self._add_movement(
+                    int(new_id),
+                    -sliced,
+                    REASON_PRINT,
+                    job_id=job_id,
+                    note=label,
+                )
+                unused = round(sliced - current, 3)
+                if abs(unused) >= 0.001:
+                    self._add_movement(
+                        int(new_id),
+                        unused,
+                        REASON_PARTIAL,
+                        job_id=job_id,
+                        note=label,
+                    )
+                self._refresh_state(int(new_id))
+
+            self.conn.execute(
+                "UPDATE job_usage SET spool_id = ?, match_reason = ?, confidence = 1.0 "
+                "WHERE id = ? AND job_id = ?",
+                (new_id, "Correction manuelle", uid, job_id),
+            )
+
+        self.conn.commit()
+
     def _cost_from_usages(
         self,
         usages: list[sqlite3.Row],
@@ -614,8 +680,8 @@ class Inventory:
         spools = [s for s in self.list_spools() if s.state != STATE_ARCHIVED]
         printed = self.conn.execute(
             "SELECT COALESCE(SUM(-delta_g), 0) AS total FROM stock_movement "
-            "WHERE reason IN (?, ?)",
-            (REASON_PRINT, REASON_PARTIAL),
+            "WHERE reason IN (?, ?, ?)",
+            (REASON_PRINT, REASON_PARTIAL, REASON_REASSIGN),
         ).fetchone()["total"]
 
         return {

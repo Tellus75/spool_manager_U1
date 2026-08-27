@@ -19,6 +19,7 @@ def test_english_translations():
     assert t("tab.printer") == "Printer"
     assert t("printer.ams", slot=2) == "AMS 2"
     assert t("history.partial") == "Stopped print…"
+    assert t("history.reassign") == "Change spool…"
     assert t("reason.partial") == "Stopped print"
 
 

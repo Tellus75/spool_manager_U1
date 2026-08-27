@@ -27,6 +27,7 @@ REASON_WEIGH = "weigh"
 REASON_ADJUST = "adjust"
 REASON_UNDO = "undo"
 REASON_PARTIAL = "partial"
+REASON_REASSIGN = "reassign"
 
 REASON_LABELS = {
     REASON_INIT: "Mise en stock",
@@ -35,6 +36,7 @@ REASON_LABELS = {
     REASON_ADJUST: "Correction manuelle",
     REASON_UNDO: "Annulation",
     REASON_PARTIAL: "Impression inachevée",
+    REASON_REASSIGN: "Changement de bobine",
 }
 
 # Statuts d'un job tranché.

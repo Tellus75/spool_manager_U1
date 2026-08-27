@@ -40,10 +40,12 @@ def usage_from_row(row) -> ParsedUsage:
 class UsageRow(QFrame):
     """Une ligne de choix : ce que demande le G-code, et la bobine à décompter."""
 
-    def __init__(self, row, spools, parent=None, *, slot_kind: str = "tool"):
+    def __init__(self, row, spools, parent=None, *, slot_kind: str = "tool", credit_g: float = 0.0):
         super().__init__(parent)
         self.usage_id = row["id"]
         self.grams = float(row["grams"])
+        self._credit_g = credit_g
+        self._current_spool_id = row["spool_id"]
         self.setProperty("role", "card")
 
         usage = usage_from_row(row)
@@ -105,10 +107,11 @@ class UsageRow(QFrame):
         self.combo.addItem(t("review.skip"), None)
         for candidate in scored:
             spool = candidate.spool
-            label = f"{spool.display_name} — {spool.remaining_g:.0f} g"
+            remaining = self._shown_remaining(spool)
+            label = f"{spool.display_name} — {remaining:.0f} g"
             if spool.loaded_slot:
                 label += t("review.in_slot", slot=spool.loaded_slot)
-            if spool.remaining_g < self.grams:
+            if remaining < self.grams:
                 label += t("review.insufficient")
             self.combo.addItem(label, spool.id)
 
@@ -116,8 +119,9 @@ class UsageRow(QFrame):
         if others:
             self.combo.insertSeparator(self.combo.count())
             for spool in others:
+                remaining = self._shown_remaining(spool)
                 self.combo.addItem(
-                    f"{spool.display_name} — {spool.remaining_g:.0f} g "
+                    f"{spool.display_name} — {remaining:.0f} g "
                     f"{t('review.other_material', material=spool.material)}",
                     spool.id,
                 )
@@ -128,6 +132,11 @@ class UsageRow(QFrame):
             if index >= 0:
                 self.combo.setCurrentIndex(index)
 
+    def _shown_remaining(self, spool) -> float:
+        if self._current_spool_id is not None and spool.id == self._current_spool_id:
+            return spool.remaining_g + self._credit_g
+        return spool.remaining_g
+
     def selection(self):
         return self.combo.currentData()
 
@@ -135,14 +144,15 @@ class UsageRow(QFrame):
 class ReviewDialog(QDialog):
     """Fait choisir les bobines d'un tranchage, puis applique le décompte."""
 
-    def __init__(self, inventory: Inventory, job_id: int, parent=None):
+    def __init__(self, inventory: Inventory, job_id: int, parent=None, *, reassign: bool = False):
         super().__init__(parent)
         self.inventory = inventory
         self.job_id = job_id
         self.discarded = False
+        self.reassign = reassign
 
         job = inventory.get_job(job_id)
-        self.setWindowTitle(t("review.title"))
+        self.setWindowTitle(t("reassign.title") if reassign else t("review.title"))
         self.setMinimumWidth(720)
 
         layout = QVBoxLayout(self)
@@ -164,7 +174,7 @@ class ReviewDialog(QDialog):
         summary.setProperty("role", "subtitle")
         layout.addWidget(summary)
 
-        explanation = QLabel(t("review.explain"))
+        explanation = QLabel(t("reassign.explain") if reassign else t("review.explain"))
         explanation.setProperty("role", "subtitle")
         explanation.setWordWrap(True)
         layout.addWidget(explanation)
@@ -176,27 +186,41 @@ class ReviewDialog(QDialog):
             layout.addWidget(warning)
 
         spools = inventory.list_spools()
+        if reassign:
+            known = {s.id for s in spools}
+            for usage in inventory.job_usages(job_id):
+                if usage["spool_id"] and usage["spool_id"] not in known:
+                    extra = inventory.get_spool(usage["spool_id"])
+                    if extra is not None:
+                        spools.append(extra)
+                        known.add(extra.id)
         kind = printers.kind_for_gcode_printer(job["printer"] or "")
         self._rows: list[UsageRow] = []
         for usage in inventory.job_usages(job_id):
-            row = UsageRow(usage, spools, self, slot_kind=kind)
+            credit = float(usage["grams"]) if reassign else 0.0
+            row = UsageRow(usage, spools, self, slot_kind=kind, credit_g=credit)
             self._rows.append(row)
             layout.addWidget(row)
 
         layout.addStretch(1)
 
         footer = QHBoxLayout()
-        discard = QPushButton(t("review.discard"))
-        discard.setProperty("variant", "danger")
-        discard.setToolTip(t("review.discard_tip"))
-        discard.clicked.connect(self._discard)
-        footer.addWidget(discard)
+        if not reassign:
+            discard = QPushButton(t("review.discard"))
+            discard.setProperty("variant", "danger")
+            discard.setToolTip(t("review.discard_tip"))
+            discard.clicked.connect(self._discard)
+            footer.addWidget(discard)
         footer.addStretch(1)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Ok).setText(t("review.deduct"))
+        buttons.button(QDialogButtonBox.Ok).setText(
+            t("reassign.apply") if reassign else t("review.deduct")
+        )
         buttons.button(QDialogButtonBox.Ok).setProperty("variant", "primary")
-        buttons.button(QDialogButtonBox.Cancel).setText(t("review.later"))
+        buttons.button(QDialogButtonBox.Cancel).setText(
+            t("cancel") if reassign else t("review.later")
+        )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         footer.addWidget(buttons)
@@ -209,7 +233,10 @@ class ReviewDialog(QDialog):
 
     def accept(self) -> None:
         assignments = {row.usage_id: row.selection() for row in self._rows}
-        self.inventory.resolve_job(self.job_id, assignments)
+        if self.reassign:
+            self.inventory.reassign_job(self.job_id, assignments)
+        else:
+            self.inventory.resolve_job(self.job_id, assignments)
         super().accept()
 
 
